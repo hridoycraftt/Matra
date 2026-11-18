@@ -17,8 +17,6 @@ Principle: **Matra is free, with no plans or tiers.** Every capability that Gram
 - [ ] Plagiarism check (web sources with links)
 - [ ] AI-text detector with highlighted passages
 - [ ] Citation finder + APA / MLA / Chicago generator
-- [ ] Personal dictionary (add word, ignore everywhere)
-- [ ] Style guide: your own rules ("write email, not e-mail")
 - [ ] Snippets: saved text you insert with a shortcut
 - [ ] Brand tones: a saved voice profile applied to checks
 
@@ -29,9 +27,11 @@ Principle: **Matra is free, with no plans or tiers.** Every capability that Gram
 - [x] Menu-bar icon, ⌃⌥M shortcut for apps whose fields can't be read, launch at login, per-app off switch
 - [x] Google Gemini (free key) or Anthropic Claude, chosen in Settings
 
-## v0.3 — inline underlines in every app + agents
-- [ ] Underlines drawn directly under mistakes inside other apps (overlay positioned with AXBoundsForRange)
-- [ ] Hover or click an underline for the suggestion card in place
+## v0.3 — inline underlines in every app + agents (in progress)
+- [x] Underlines drawn directly under mistakes inside other apps (overlay positioned with AXBoundsForRange)
+- [x] Move the caret onto an underline to open the suggestion card in place
+- [x] Personal dictionary (moved up from v0.2 plan)
+- [x] Style guide rules (moved up from v0.2 plan)
 - [ ] Reader reactions: how a chosen reader will receive the text
 - [ ] AI grader: score against a rubric or assignment brief
 - [ ] Proofread whole document in one pass with a change summary

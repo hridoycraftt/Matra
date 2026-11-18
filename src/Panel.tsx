@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Editor, type EditorHandle } from "./components/Editor";
 import { GoalsMenu } from "./components/GoalsMenu";
 import { IconCheck, IconGear, IconX, LogoMark } from "./components/Icons";
-import { SidePanel } from "./components/SidePanel";
+import { canAddWord, SidePanel } from "./components/SidePanel";
 import {
   configureEverywhere,
   currentField,
@@ -11,10 +11,12 @@ import {
   openMain,
   sendBadge,
   setBadge,
+  setUnderlines,
   showPanel,
   writeField,
   type FieldInfo,
   type PanelMode,
+  type ScreenRect,
 } from "./lib/everywhere";
 import { inApp, onAppEvent, useApiKey, useSettings } from "./lib/platform";
 import { CATEGORIES, DEFAULT_GOALS, PROVIDERS, type Goals, type Issue } from "./lib/types";
@@ -46,7 +48,7 @@ function loadGoals(): Goals {
  * as a small suggestion card (or the full assistant) beside the field.
  */
 export default function Panel() {
-  const [settings] = useSettings();
+  const [settings, setSettings] = useSettings();
   const [apiKey] = useApiKey(settings.provider);
   const [goals, setGoals] = useState<Goals>(loadGoals);
   const [field, setField] = useState<FieldInfo | null>(inApp ? null : PREVIEW_FIELD);
@@ -56,6 +58,8 @@ export default function Panel() {
   );
   const [shown, setShown] = useState(!inApp);
   const [writeNote, setWriteNote] = useState<string | null>(null);
+  const [focusId, setFocusId] = useState<string | null>(null);
+  const anchor = useRef<ScreenRect | undefined>(undefined);
   const editor = useRef<EditorHandle>(null);
   const fromField = useRef(false);
   const typed = useRef(false);
@@ -81,6 +85,7 @@ export default function Panel() {
     settings,
     apiKey,
     editor,
+    onAddWord: (w) => setSettings({ ...settings, dictionary: [...new Set([...settings.dictionary, w])] }),
   });
   const selectionWords = useSelectionWords();
 
@@ -96,11 +101,28 @@ export default function Panel() {
     }
   }, [goals]);
 
-  const open = (m: PanelMode, focus: boolean) => {
+  const open = (m: PanelMode, focus: boolean, at?: ScreenRect) => {
     setMode(m);
     setShown(true);
-    showPanel(focus, m);
+    anchor.current = m === "card" ? at : undefined;
+    showPanel(focus, m, undefined, anchor.current);
   };
+
+  // Underline the suggestions inside the other app.
+  useEffect(() => {
+    setUnderlines(a.issues.map((i) => ({ id: i.id, start: i.start, len: i.end - i.start, category: i.category })));
+  }, [a.issues]);
+
+  // The caret moved onto an underlined word: open the card right there, like clicking an underline.
+  useEffect(
+    () =>
+      onAppEvent<[string, [number, number, number, number] | null]>("matra://caret-issue", ([id, r]) => {
+        setFocusId(id);
+        open("card", false, r ? { x: r[0], y: r[1], w: r[2], h: r[3] } : undefined);
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
   const close = () => {
     setShown(false);
     hidePanel();
@@ -196,9 +218,11 @@ export default function Panel() {
           focusSource();
         }}
         onDismiss={a.dismiss}
+        onAddWord={a.addWord}
         onExpand={() => open("full", true)}
         onClose={close}
-        onResize={(h) => shown && showPanel(false, "card", h)}
+        focusId={focusId}
+        onResize={(h) => shown && showPanel(false, "card", h, anchor.current)}
       />
     );
   }
@@ -251,6 +275,7 @@ export default function Panel() {
         onActivate={a.activate}
         onAccept={a.accept}
         onDismiss={a.dismiss}
+        onAddWord={a.addWord}
         onAcceptAll={a.acceptAll}
         hasKey={!!apiKey}
         providerLabel={providerLabel}
@@ -282,11 +307,17 @@ function SuggestionCard(p: {
   hasKey: boolean;
   onAccept(id: string): void;
   onDismiss(id: string): void;
+  onAddWord(id: string): void;
   onExpand(): void;
   onClose(): void;
   onResize(height: number): void;
+  focusId?: string | null;
 }) {
   const [index, setIndex] = useState(0);
+  useEffect(() => {
+    const at = p.issues.findIndex((x) => x.id === p.focusId);
+    if (at >= 0) setIndex(at);
+  }, [p.focusId, p.issues]);
   const root = useRef<HTMLDivElement>(null);
   const i = Math.min(index, Math.max(0, p.issues.length - 1));
   const issue = p.issues[i];
@@ -345,6 +376,9 @@ function SuggestionCard(p: {
           <div className="sugg-actions">
             <button className="btn btn-primary btn-sm" onClick={() => p.onAccept(issue.id)}>Accept</button>
             <button className="btn btn-quiet btn-sm" onClick={() => p.onDismiss(issue.id)}>Dismiss</button>
+            {canAddWord(issue) && (
+              <button className="btn btn-quiet btn-sm" onClick={() => p.onAddWord(issue.id)}>Add to dictionary</button>
+            )}
           </div>
         </div>
       ) : (

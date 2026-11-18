@@ -94,6 +94,10 @@ export interface Settings {
   /** Open the suggestion panel by itself when a mistake is found in another app. */
   autoOpenPanel: boolean;
   ignoredApps: string[];
+  /** Words Matra should never flag as misspelled (names, jargon, Banglish words). */
+  dictionary: string[];
+  /** The writer's own house style rules, one per line. */
+  styleRules: string;
 }
 
 export const PROVIDERS: { id: Provider; label: string; keyHint: string; keyUrl: string; placeholder: string }[] = [
@@ -132,6 +136,8 @@ export const DEFAULT_SETTINGS: Settings = {
   everywhere: true,
   autoOpenPanel: true,
   ignoredApps: [],
+  dictionary: [],
+  styleRules: "",
 };
 
 export function activeModel(s: Settings): string {

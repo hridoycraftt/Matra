@@ -8,6 +8,7 @@ import { inApp } from "./lib/platform";
 
 const Panel = lazy(() => import("./Panel"));
 const Badge = lazy(() => import("./Badge"));
+const Underlines = lazy(() => import("./Underlines"));
 
 /** Which Matra window this webview is: the main editor, the floating panel, or the badge. */
 async function whichView(): Promise<string> {
@@ -22,7 +23,8 @@ if (inApp) document.documentElement.classList.add("in-app");
 
 whichView().then((view) => {
   if (view === "panel") document.documentElement.classList.add("is-panel");
-  const root = view === "panel" ? <Panel /> : view === "badge" ? <Badge /> : <App />;
+  const root =
+    view === "panel" ? <Panel /> : view === "badge" ? <Badge /> : view === "underlines" ? <Underlines /> : <App />;
   createRoot(document.getElementById("root")!).render(
     <StrictMode>
       <Suspense fallback={null}>{root}</Suspense>

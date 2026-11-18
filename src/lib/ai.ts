@@ -106,7 +106,15 @@ export async function checkText(
     `Goals: written for ${GOAL_TEXT.audience[goals.audience]}, ${GOAL_TEXT.formality[goals.formality]} formality, as ${GOAL_TEXT.domain[goals.domain]}, meant to ${GOAL_TEXT.intent[goals.intent]}.`,
     `English spelling: ${settings.englishDialect === "UK" ? "British" : "American"}. Bangla: standard cholito (প্রমিত চলিত).`,
     explanationLine(settings),
-  ].join("\n");
+    settings.dictionary.length
+      ? `The writer's personal dictionary — never flag these words or their spelling: ${settings.dictionary.join(", ")}.`
+      : "",
+    settings.styleRules.trim()
+      ? `The writer's house style rules. Flag text that breaks them (category delivery, title "Style guide") and follow them in replacements:\n${settings.styleRules.trim()}`
+      : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
   const raw = await ai.json({
     system: CHECK_SYSTEM,
     user: `${context}\n\n<text>\n${body}\n</text>`,
@@ -119,7 +127,10 @@ export async function checkText(
   } catch {
     throw new MatraAIError("The AI returned an unreadable result. Try again.", "other");
   }
-  parsed.issues = Array.isArray(parsed.issues) ? parsed.issues : [];
+  const known = new Set(settings.dictionary.map((w) => w.toLowerCase()));
+  parsed.issues = (Array.isArray(parsed.issues) ? parsed.issues : []).filter(
+    (i) => !(i.category === "correctness" && known.has(i.original.trim().toLowerCase())),
+  );
   parsed.score = Math.max(0, Math.min(100, Math.round(Number(parsed.score) || 0)));
   parsed.tone_labels = (parsed.tone_labels ?? []).slice(0, 3);
   return parsed;

@@ -1,5 +1,6 @@
-Fixes from your first test:
-• The suggestion panel now opens where there is room (below, above, left or right of the text box) and never goes off screen.
-• The Matra badge stays hidden until you start typing, and fades away when there's nothing to fix.
-• When Matra finds a mistake, a small card opens with one suggestion at a time. Click the green/pink fix to accept it, or "Open Matra" for the full assistant.
-• Keys added in Settings reach the floating panel immediately, and it names the AI provider you chose.
+Matra 0.3 — mistakes are now underlined right inside other apps.
+• Pink, blue, green and amber lines appear under the words to fix, in Mail, Notes, Slack, Chrome and more.
+• Move the cursor onto an underlined word and the suggestion card opens right next to it.
+• Personal dictionary: "Add to dictionary" on any spelling suggestion, or manage words in Settings.
+• Style guide: write your own rules in Settings (e.g. "email, not e-mail") and Matra checks them everywhere.
+Some apps don't report where their words are on screen; there Matra still shows the badge and the card.

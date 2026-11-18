@@ -62,6 +62,8 @@ export function SettingsSheet(p: Props) {
 
         <Everywhere settings={p.settings} onSettings={p.onSettings} />
 
+        <DictionaryAndStyle settings={p.settings} onSettings={p.onSettings} />
+
         <section className="group">
           <h3>Checking</h3>
           <label className="toggle">
@@ -272,6 +274,60 @@ function Everywhere({ settings, onSettings }: { settings: Settings; onSettings(s
           <span>Start Matra when I log in</span>
         </label>
       )}
+    </section>
+  );
+}
+
+function DictionaryAndStyle({ settings, onSettings }: { settings: Settings; onSettings(s: Settings): void }) {
+  const [word, setWord] = useState("");
+  const [rules, setRules] = useState(settings.styleRules);
+  const add = () => {
+    const w = word.trim();
+    if (!w) return;
+    onSettings({ ...settings, dictionary: [...new Set([...settings.dictionary, w])] });
+    setWord("");
+  };
+  return (
+    <section className="group">
+      <h3>Personal dictionary</h3>
+      <p className="muted small">Words Matra will never mark as misspelled: names, brands, jargon.</p>
+      <form
+        className="inline-form"
+        onSubmit={(e) => {
+          e.preventDefault();
+          add();
+        }}
+      >
+        <input value={word} onChange={(e) => setWord(e.target.value)} placeholder="Add a word" aria-label="Add a word to the dictionary" />
+        <button className="btn btn-quiet" disabled={!word.trim()}>Add</button>
+      </form>
+      {settings.dictionary.length > 0 && (
+        <ul className="word-list" aria-label="Dictionary words">
+          {settings.dictionary.map((w) => (
+            <li key={w}>
+              {w}
+              <button
+                className="icon-btn"
+                aria-label={`Remove ${w}`}
+                onClick={() => onSettings({ ...settings, dictionary: settings.dictionary.filter((x) => x !== w) })}
+              >
+                <IconX size={12} />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <h3>Style guide</h3>
+      <p className="muted small">Your own rules, one per line. Matra flags text that breaks them.</p>
+      <textarea
+        className="rules"
+        rows={4}
+        value={rules}
+        onChange={(e) => setRules(e.target.value)}
+        onBlur={() => onSettings({ ...settings, styleRules: rules })}
+        placeholder={"Write “email”, not “e-mail”\nUse “customer”, never “client”\nNo exclamation marks in work emails"}
+        aria-label="Style guide rules"
+      />
     </section>
   );
 }

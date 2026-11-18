@@ -177,3 +177,20 @@ test("suggestion card shows one fix at a time and applies it", async ({ page }) 
   const box = await page.locator(".sugg").boundingBox();
   expect(box!.height).toBeLessThan(240);
 });
+
+test("add to dictionary stops flagging the word and teaches later checks", async ({ page }) => {
+  await withKey(page);
+  const log = await mockClaude(page);
+  await page.goto("/");
+  await page.getByRole("button", { name: /^Check/ }).click();
+  await expect(page.locator(".card")).toHaveCount(5);
+  await page.locator(".card", { hasText: "Agreement" }).getByRole("button", { name: "Add to dictionary" }).click();
+  await expect(page.locator(".card")).toHaveCount(4);
+  await page.getByRole("button", { name: /^Check/ }).click();
+  await expect.poll(() => log.requests.length).toBe(2);
+  const body = JSON.stringify(log.requests[1]);
+  expect(body).toContain("personal dictionary");
+  expect(body).toContain("work");
+  // Checks after that drop the word even if the model flags it again.
+  await expect(page.locator(".card")).toHaveCount(4);
+});

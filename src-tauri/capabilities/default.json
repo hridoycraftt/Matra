@@ -5,7 +5,8 @@
   "windows": [
     "main",
     "panel",
-    "badge"
+    "badge",
+    "underlines"
   ],
   "permissions": [
     "core:default",

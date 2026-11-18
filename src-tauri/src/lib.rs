@@ -99,8 +99,20 @@ async fn write_field(app: AppHandle, text: String) -> Result<String, String> {
 }
 
 #[tauri::command]
-fn show_panel(app: AppHandle, focus: bool, mode: everywhere::PanelMode, height: Option<f64>) {
-    everywhere::place_panel(&app, focus, mode, height);
+fn show_panel(
+    app: AppHandle,
+    focus: bool,
+    mode: everywhere::PanelMode,
+    height: Option<f64>,
+    anchor: Option<everywhere::Rect>,
+) {
+    everywhere::place_panel(&app, focus, mode, height, anchor);
+}
+
+/// The checker's current suggestions, to underline inside the other app.
+#[tauri::command]
+fn set_underlines(app: AppHandle, underlines: Vec<everywhere::Underline>) {
+    *app.state::<State>().underlines.lock().unwrap() = underlines;
 }
 
 #[tauri::command]
@@ -155,7 +167,7 @@ fn on_shortcut(app: &AppHandle) {
     if has_field {
         state.capture_whole.store(true, Ordering::Relaxed);
         let _ = app.emit_to(PANEL, "matra://mode", "full");
-        everywhere::place_panel(app, true, everywhere::PanelMode::Full, None);
+        everywhere::place_panel(app, true, everywhere::PanelMode::Full, None, None);
         return;
     }
     let app = app.clone();
@@ -191,11 +203,11 @@ fn on_shortcut(app: &AppHandle) {
                 *state.last.lock().unwrap() = Some(info.clone());
                 let _ = app.emit_to(PANEL, "matra://field", &info);
                 let _ = app.emit_to(PANEL, "matra://mode", "full");
-                everywhere::place_panel(&app, true, everywhere::PanelMode::Full, None);
+                everywhere::place_panel(&app, true, everywhere::PanelMode::Full, None, None);
             }
             Err(e) => {
                 let _ = app.emit_to(PANEL, "matra://error", e);
-                everywhere::place_panel(&app, true, everywhere::PanelMode::Full, None);
+                everywhere::place_panel(&app, true, everywhere::PanelMode::Full, None, None);
             }
         }
     });
@@ -259,6 +271,7 @@ pub fn run() {
             write_field,
             show_panel,
             set_badge,
+            set_underlines,
             focus_source,
             hide_panel,
             open_main
@@ -266,6 +279,10 @@ pub fn run() {
         .setup(move |app| {
             let handle = app.handle().clone();
             build_tray(&handle)?;
+            // The underline layer sits over other apps' text but never takes clicks.
+            if let Some(overlay) = handle.get_webview_window(everywhere::OVERLAY) {
+                let _ = overlay.set_ignore_cursor_events(true);
+            }
             if let Err(e) = handle.global_shortcut().register(shortcut) {
                 eprintln!("Could not register ⌃⌥M: {e}");
             }

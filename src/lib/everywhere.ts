@@ -40,8 +40,19 @@ export const writeField = (text: string) => (inApp ? invoke<string>("write_field
 export type PanelMode = "card" | "full";
 
 /** Show the panel next to the field. In "card" mode it is a small single-suggestion card. */
-export const showPanel = (focus: boolean, mode: PanelMode, height?: number) =>
-  inApp ? invoke("show_panel", { focus, mode, height }) : Promise.resolve();
+export interface ScreenRect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+export const showPanel = (focus: boolean, mode: PanelMode, height?: number, anchor?: ScreenRect) =>
+  inApp ? invoke("show_panel", { focus, mode, height, anchor }) : Promise.resolve();
+
+/** Tell the watcher which spans to underline inside the other app. */
+export const setUnderlines = (marks: { id: string; start: number; len: number; category: string }[]) =>
+  inApp ? invoke("set_underlines", { underlines: marks }) : Promise.resolve();
 
 /** Ask the panel window (the checker) to switch mode and show itself. Used by the badge. */
 export async function openPanel(mode: PanelMode) {

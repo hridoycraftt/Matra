@@ -53,6 +53,7 @@ export default function App() {
     settings,
     apiKey,
     editor,
+    onAddWord: (w) => setSettings({ ...settings, dictionary: [...new Set([...settings.dictionary, w])] }),
   });
   const selectionWords = useSelectionWords();
 
@@ -199,6 +200,7 @@ export default function App() {
         onActivate={a.activate}
         onAccept={a.accept}
         onDismiss={a.dismiss}
+        onAddWord={a.addWord}
         onAcceptAll={a.acceptAll}
         hasKey={!!apiKey}
         providerLabel={PROVIDERS.find((x) => x.id === settings.provider)!.label}

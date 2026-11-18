@@ -14,13 +14,15 @@ interface Options {
   settings: Settings;
   apiKey: string | null;
   editor: RefObject<EditorHandle | null>;
+  /** Save a word to the personal dictionary. */
+  onAddWord?(word: string): void;
 }
 
 /**
  * Everything Matra does to one piece of text: checking, suggestions, rewrite and compose.
  * Used by the main window and by the floating assistant that works in other apps.
  */
-export function useAssistant({ text, setText, goals, settings, apiKey, editor }: Options) {
+export function useAssistant({ text, setText, goals, settings, apiKey, editor, onAddWord }: Options) {
   const [issues, setIssues] = useState<Issue[]>([]);
   const [activeIssue, setActiveIssue] = useState<string | null>(null);
   const [check, setCheck] = useState<CheckView>({ status: "idle" });
@@ -119,6 +121,13 @@ export function useAssistant({ text, setText, goals, settings, apiKey, editor }:
     setActiveIssue(null);
   };
   const dismiss = (id: string) => setIssues((all) => all.filter((i) => i.id !== id));
+  /** "Add to dictionary": stop flagging this word, here and in every later check. */
+  const addWord = (id: string) => {
+    const word = issues.find((i) => i.id === id)?.original.trim();
+    if (!word) return;
+    onAddWord?.(word);
+    setIssues((all) => all.filter((i) => i.original.trim().toLowerCase() !== word.toLowerCase()));
+  };
   const acceptAll = (cat: Category | "all") => {
     let next = textRef.current;
     let list = issues;
@@ -220,6 +229,7 @@ export function useAssistant({ text, setText, goals, settings, apiKey, editor }:
     runCheck,
     accept,
     dismiss,
+    addWord,
     acceptAll,
     activate,
     onCaret,

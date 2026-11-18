@@ -19,8 +19,29 @@ pub struct FieldInfo {
     pub field_id: u64,
 }
 
+/// A suggestion's span in the field, to underline in place.
+#[derive(Clone, Deserialize, Serialize, Debug, PartialEq)]
+pub struct Underline {
+    pub id: String,
+    pub start: usize,
+    pub len: usize,
+    pub category: String,
+}
+
+/// An underline positioned on screen, relative to the overlay window (= the field).
+#[derive(Clone, Serialize, Debug, PartialEq)]
+pub struct Mark {
+    pub id: String,
+    pub category: String,
+    pub x: f64,
+    pub y: f64,
+    pub w: f64,
+    pub h: f64,
+}
+
 #[derive(Default)]
 pub struct State {
+    pub underlines: Mutex<Vec<Underline>>,
     pub enabled: AtomicBool,
     pub auto_open: AtomicBool,
     /// Whether a paste fallback should replace the whole field (true) or only the selection.
@@ -42,6 +63,7 @@ pub struct Config {
 }
 
 pub const BADGE: &str = "badge";
+pub const OVERLAY: &str = "underlines";
 pub const PANEL: &str = "panel";
 const BADGE_SIZE: f64 = 30.0;
 
@@ -71,6 +93,14 @@ pub fn place_badge<R: Runtime>(app: &AppHandle<R>, f: &FieldInfo) {
     }
 }
 
+pub fn hide_overlay<R: Runtime>(app: &AppHandle<R>) {
+    if let Some(w) = app.get_webview_window(OVERLAY) {
+        if w.is_visible().unwrap_or(false) {
+            let _ = w.hide();
+        }
+    }
+}
+
 pub fn hide_badge<R: Runtime>(app: &AppHandle<R>) {
     if let Some(badge) = app.get_webview_window(BADGE) {
         if badge.is_visible().unwrap_or(false) {
@@ -79,7 +109,7 @@ pub fn hide_badge<R: Runtime>(app: &AppHandle<R>) {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Deserialize)]
 pub struct Rect {
     pub x: f64,
     pub y: f64,
@@ -161,7 +191,7 @@ pub fn badge_rect(f: &FieldInfo) -> Rect {
 }
 
 /// Show the panel next to the field, sized for the mode, always fully on screen.
-pub fn place_panel<R: Runtime>(app: &AppHandle<R>, focus: bool, mode: PanelMode, height: Option<f64>) {
+pub fn place_panel<R: Runtime>(app: &AppHandle<R>, focus: bool, mode: PanelMode, height: Option<f64>, anchor: Option<Rect>) {
     let Some(panel) = app.get_webview_window(PANEL) else { return };
     let (w, h) = match mode {
         PanelMode::Card => (CARD_WIDTH, height.unwrap_or(190.0).clamp(120.0, 420.0)),
@@ -170,10 +200,10 @@ pub fn place_panel<R: Runtime>(app: &AppHandle<R>, focus: bool, mode: PanelMode,
     let _ = panel.set_size(tauri::LogicalSize::new(w, h));
     let last = app.state::<State>().last.lock().unwrap().clone();
     if let Some(f) = last {
-        let anchor = match mode {
+        let anchor = anchor.unwrap_or(match mode {
             PanelMode::Card => badge_rect(&f),
             PanelMode::Full => Rect { x: f.x, y: f.y, w: f.width, h: f.height },
-        };
+        });
         let screen = screen_at(app, anchor.x, anchor.y);
         let (x, y) = place(anchor, w, h, screen, mode);
         let _ = panel.set_position(LogicalPosition::new(x, y));
@@ -243,11 +273,14 @@ pub fn start_watcher<R: Runtime>(app: AppHandle<R>) {
         let own_pid = std::process::id() as i32;
         let mut woken: HashSet<i32> = HashSet::new();
         let mut field_counter: u64 = 0;
+        let mut last_marks: Vec<Mark> = Vec::new();
+        let mut last_caret_issue: Option<String> = None;
         loop {
             std::thread::sleep(Duration::from_millis(450));
             let state = app.state::<State>();
             if !state.enabled.load(Ordering::Relaxed) || !ax::is_trusted() {
                 hide_badge(&app);
+                hide_overlay(&app);
                 continue;
             }
 
@@ -269,6 +302,7 @@ pub fn start_watcher<R: Runtime>(app: AppHandle<R>) {
 
             let Some(field) = field else {
                 hide_badge(&app);
+                hide_overlay(&app);
                 let mut last = state.last.lock().unwrap();
                 if last.is_some() {
                     *last = None;
@@ -282,6 +316,9 @@ pub fn start_watcher<R: Runtime>(app: AppHandle<R>) {
             if !same_element {
                 field_counter += 1;
                 state.badge_wanted.store(false, Ordering::Relaxed);
+                state.underlines.lock().unwrap().clear();
+                last_marks.clear();
+                last_caret_issue = None;
             }
             let info = FieldInfo {
                 app: field.app.clone(),
@@ -301,6 +338,55 @@ pub fn start_watcher<R: Runtime>(app: AppHandle<R>) {
                 let _ = app.emit_to(PANEL, "matra://field", &info);
             }
             place_badge(&app, &info);
+
+            // Underlines drawn in place, and the card for the underline the caret is on.
+            let underlines = state.underlines.lock().unwrap().clone();
+            let element = state.element.lock().unwrap().clone();
+            if let (false, Some(el)) = (underlines.is_empty(), element) {
+                let marks: Vec<Mark> = underlines
+                    .iter()
+                    .filter_map(|u| {
+                        let (x, y, w, h) = el.bounds_for_range(u.start, u.len)?;
+                        Some(Mark { id: u.id.clone(), category: u.category.clone(), x: x - info.x, y: y - info.y, w, h })
+                    })
+                    .filter(|m| m.x > -2.0 && m.y > -2.0 && m.x < info.width + 2.0 && m.y < info.height + 2.0)
+                    .collect();
+                if let Some(overlay) = app.get_webview_window(OVERLAY) {
+                    let _ = overlay.set_position(LogicalPosition::new(info.x, info.y));
+                    let _ = overlay.set_size(tauri::LogicalSize::new(info.width.max(1.0), info.height.max(1.0)));
+                    if marks != last_marks {
+                        let _ = app.emit_to(OVERLAY, "matra://marks", &marks);
+                        last_marks = marks.clone();
+                    }
+                    if marks.is_empty() {
+                        hide_overlay(&app);
+                    } else if !overlay.is_visible().unwrap_or(false) {
+                        let _ = overlay.show();
+                    }
+                }
+                if let Some(caret) = el.caret() {
+                    let hit = underlines.iter().find(|u| caret >= u.start && caret <= u.start + u.len);
+                    let hit_id = hit.map(|u| u.id.clone());
+                    if hit_id != last_caret_issue {
+                        last_caret_issue = hit_id;
+                        if let Some(u) = hit {
+                            let rect = marks.iter().find(|m| m.id == u.id).map(|m| Rect {
+                                x: m.x + info.x,
+                                y: m.y + info.y,
+                                w: m.w,
+                                h: m.h,
+                            });
+                            let _ = app.emit_to(PANEL, "matra://caret-issue", (u.id.clone(), rect.map(|r| (r.x, r.y, r.w, r.h))));
+                        }
+                    }
+                }
+            } else {
+                if !last_marks.is_empty() {
+                    last_marks.clear();
+                    let _ = app.emit_to(OVERLAY, "matra://marks", &last_marks);
+                }
+                hide_overlay(&app);
+            }
         }
     });
 }

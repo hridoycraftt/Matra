@@ -14,6 +14,21 @@ type AXError = i32;
 const AX_OK: AXError = 0;
 const AX_VALUE_CGPOINT: u32 = 1;
 const AX_VALUE_CGSIZE: u32 = 2;
+const AX_VALUE_CGRECT: u32 = 3;
+const AX_VALUE_CFRANGE: u32 = 4;
+
+#[repr(C)]
+#[derive(Default, Clone, Copy)]
+struct CFRange {
+    location: isize,
+    length: isize,
+}
+#[repr(C)]
+#[derive(Default, Clone, Copy)]
+struct CGRect {
+    origin: CGPoint,
+    size: CGSize,
+}
 
 #[repr(C)]
 #[derive(Default, Clone, Copy)]
@@ -38,6 +53,13 @@ extern "C" {
     fn AXUIElementSetAttributeValue(el: AXUIElementRef, attr: CFStringRef, value: CFTypeRef) -> AXError;
     fn AXUIElementGetPid(el: AXUIElementRef, pid: *mut i32) -> AXError;
     fn AXValueGetValue(value: CFTypeRef, kind: u32, out: *mut c_void) -> bool;
+    fn AXValueCreate(kind: u32, value: *const c_void) -> CFTypeRef;
+    fn AXUIElementCopyParameterizedAttributeValue(
+        el: AXUIElementRef,
+        attr: CFStringRef,
+        param: CFTypeRef,
+        value: *mut CFTypeRef,
+    ) -> AXError;
 }
 
 /// Has the user granted Matra Accessibility access?
@@ -133,6 +155,36 @@ impl Element {
         let mut s = CGSize::default();
         let ok = unsafe { AXValueGetValue(v.as_CFTypeRef(), AX_VALUE_CGSIZE, &mut s as *mut _ as *mut c_void) };
         ok.then_some(s)
+    }
+
+    /// Screen rectangle (x, y, width, height) of a text range, in UTF-16 units like JavaScript strings.
+    pub fn bounds_for_range(&self, start: usize, len: usize) -> Option<(f64, f64, f64, f64)> {
+        let range = CFRange { location: start as isize, length: len as isize };
+        let param = unsafe { AXValueCreate(AX_VALUE_CFRANGE, &range as *const _ as *const c_void) };
+        if param.is_null() {
+            return None;
+        }
+        let param = unsafe { CFType::wrap_under_create_rule(param) };
+        let attr = CFString::new("AXBoundsForRange");
+        let mut value: CFTypeRef = std::ptr::null();
+        let err = unsafe {
+            AXUIElementCopyParameterizedAttributeValue(self.0, attr.as_concrete_TypeRef(), param.as_CFTypeRef(), &mut value)
+        };
+        if err != AX_OK || value.is_null() {
+            return None;
+        }
+        let value = unsafe { CFType::wrap_under_create_rule(value) };
+        let mut r = CGRect::default();
+        let ok = unsafe { AXValueGetValue(value.as_CFTypeRef(), AX_VALUE_CGRECT, &mut r as *mut _ as *mut c_void) };
+        (ok && r.size.width > 0.0 && r.size.height > 0.0).then_some((r.origin.x, r.origin.y, r.size.width, r.size.height))
+    }
+
+    /// Caret position (start of the selection) in UTF-16 units.
+    pub fn caret(&self) -> Option<usize> {
+        let v = self.copy_attr("AXSelectedTextRange")?;
+        let mut r = CFRange::default();
+        let ok = unsafe { AXValueGetValue(v.as_CFTypeRef(), AX_VALUE_CFRANGE, &mut r as *mut _ as *mut c_void) };
+        (ok && r.location >= 0).then_some(r.location as usize)
     }
 
     pub fn pid(&self) -> Option<i32> {

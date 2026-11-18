@@ -59,6 +59,22 @@
         "transparent": true,
         "shadow": false,
         "visibleOnAllWorkspaces": true
+      },
+      {
+        "label": "underlines",
+        "title": "Matra underlines",
+        "url": "index.html?view=underlines",
+        "width": 10,
+        "height": 10,
+        "visible": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "resizable": false,
+        "focus": false,
+        "decorations": false,
+        "transparent": true,
+        "shadow": false,
+        "visibleOnAllWorkspaces": true
       }
     ],
     "security": {
