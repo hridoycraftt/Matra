@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { Issue } from "../lib/types";
+import { IconMore } from "./Icons";
 
 export interface IssueMenuActions {
   onAddWord?(id: string): void;
@@ -45,11 +46,7 @@ export function IssueMenu({ issue, onAddWord, onMute, onReport }: { issue: Issue
           setOpen((o) => !o);
         }}
       >
-        <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
-          <circle cx="5" cy="12" r="1.7" fill="currentColor" />
-          <circle cx="12" cy="12" r="1.7" fill="currentColor" />
-          <circle cx="19" cy="12" r="1.7" fill="currentColor" />
-        </svg>
+        <IconMore size={18} />
       </button>
       {open && (
         <div className="menu" role="menu">

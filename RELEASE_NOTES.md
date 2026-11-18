@@ -1,6 +1,5 @@
-Matra 0.3.5 — clearer and easier to use.
-• Settings is now its own page with sections: General, AI provider, Other apps, Dictionary, Style guide, Updates.
-• Accessibility shows "allowed" or "not allowed" plainly, with step-by-step help and a Repair button for the case where the switch in System Settings is on but Matra still can't see your text (left over from an older version).
-• The sidebar shows whether Matra is working in other apps; click it to jump to its settings.
-• Select text in the editor to get a small pill with Improve, Shorten, Formal, Friendly and "Tell Matra to…". Results now have a Regenerate button.
-• Updates → Diagnostics shows which text box Matra can see right now, to help track down problems.
+Matra 0.3.6 — a cleaner look, and permission that sticks.
+• Matra is now signed with its own certificate. Allow Accessibility once more after this update; later updates keep it.
+• New icons across the whole app (Hugeicons), and colored section icons in Settings, like macOS System Settings.
+• Each Settings section has a short description, and the document list shows icons.
+• Before your first check, the Review panel explains what to do instead of showing empty counters.

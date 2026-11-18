@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Editor, type EditorHandle } from "./components/Editor";
 import { GoalsMenu } from "./components/GoalsMenu";
-import { IconCheck, IconChevron, IconGear, IconX, LogoMark } from "./components/Icons";
+import { IconArrowRight, IconCheck, IconChevron, IconGear, IconX, LogoMark } from "./components/Icons";
 import { IssueMenu } from "./components/IssueMenu";
 import { SidePanel } from "./components/SidePanel";
 import {
@@ -388,7 +388,7 @@ function SuggestionCard(p: {
           </div>
           <div className="sugg-fix">
             <del>{issue.original}</del>
-            <span aria-hidden="true" className="muted">→</span>
+            <span className="diff-arrow" aria-hidden="true"><IconArrowRight size={14} /></span>
             <button className={`sugg-chip sugg-chip-${issue.category}`} onClick={() => p.onAccept(issue.id)} title="Accept">
               {issue.replacement || "(remove)"}
             </button>

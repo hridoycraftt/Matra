@@ -30,7 +30,8 @@ export function computeStats(text: string): TextStats {
   const paragraphs = trimmed.split(/\n\s*\n/).filter((p) => p.trim()).length;
   const banglaChars = (trimmed.match(BANGLA) ?? []).length;
   const letters = trimmed.replace(/\s/g, "").length;
-  const mostlyBangla = banglaChars / Math.max(1, letters) > 0.3;
+  // Flesch is an English formula: skip it once there is a real share of Bangla.
+  const mostlyBangla = banglaChars / Math.max(1, letters) > 0.1;
 
   let readability: number | null = null;
   if (!mostlyBangla && words.length >= 5) {

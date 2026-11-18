@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Editor, type EditorHandle } from "./components/Editor";
 import { GoalsMenu } from "./components/GoalsMenu";
-import { IconCheck, IconGear, IconPlus, IconTrash, LogoMark } from "./components/Icons";
+import { IconCheck, IconDoc, IconGear, IconPlus, IconTrash, LogoMark } from "./components/Icons";
 import { SettingsView, usePermission, type SettingsSection } from "./components/SettingsView";
 import { SidePanel } from "./components/SidePanel";
 import { clearApiKey, inApp, onAppEvent, saveApiKey, useApiKey, useSettings } from "./lib/platform";
@@ -136,8 +136,13 @@ export default function App() {
                 onClick={() => openDoc(d.id)}
                 aria-current={d.id === doc.id ? "page" : undefined}
               >
-                <span className="doc-name">{docTitle(d)}</span>
-                <span className="doc-meta">{relativeTime(d.updatedAt)}</span>
+                <span className="doc-icon" aria-hidden="true">
+                  <IconDoc size={15} />
+                </span>
+                <span className="doc-text">
+                  <span className="doc-name">{docTitle(d)}</span>
+                  <span className="doc-meta">{relativeTime(d.updatedAt)}</span>
+                </span>
               </button>
               <button className="icon-btn doc-delete" aria-label={`Delete ${docTitle(d)}`} onClick={() => deleteDoc(d.id)}>
                 <IconTrash size={14} />

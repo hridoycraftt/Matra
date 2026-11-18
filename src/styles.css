@@ -190,7 +190,8 @@ kbd { font: 11px var(--font-ui); color: var(--ink-3); margin-left: auto; }
 .doc-list li { position: relative; }
 .doc-item {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  gap: 9px;
   width: 100%;
   padding: 7px 30px 7px 10px;
   border: 0;
@@ -899,24 +900,40 @@ html.in-app.is-card .sugg { width: auto; }
 .in-app .settings-nav { padding-top: 22px; }
 .settings-tab {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 1px;
-  padding: 8px 12px;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
   border: 0;
   border-radius: 8px;
   background: transparent;
   text-align: left;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--ink-2);
 }
-.settings-tab span { font-weight: 500; font-size: 13.5px; }
-.settings-tab small { font-size: 11.5px; color: var(--ink-3); }
-.settings-tab:hover { background: var(--hover); }
-.settings-tab.is-active { background: var(--page); box-shadow: 0 0 0 1px var(--line), 0 1px 2px rgba(13, 12, 34, 0.05); }
-.settings-tab.is-active span { color: var(--ink); }
+.settings-tab:hover { background: var(--hover); color: var(--ink); }
+.settings-tab.is-active { background: var(--press); color: var(--ink); }
+.tile {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  color: #fff;
+  flex: none;
+  box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.12), 0 1px 1px rgba(13, 12, 34, 0.12);
+}
+.tile-slate { background: linear-gradient(180deg, #8a8997, #6e6d7a); }
+.tile-pink { background: linear-gradient(180deg, #f06c9e, #d9336f); }
+.tile-indigo { background: linear-gradient(180deg, #7b83f0, #4b55d6); }
+.tile-teal { background: linear-gradient(180deg, #2fb3a6, #0e8a7e); }
+.tile-amber { background: linear-gradient(180deg, #e8ad3c, #c98a0b); }
+.tile-blue { background: linear-gradient(180deg, #4c9bf5, #2475d9); }
+.settings-sub { margin: 3px 0 0; font-size: 13px; color: var(--ink-3); }
 .settings-page { overflow: auto; padding: 18px 28px 40px; min-width: 0; }
 .settings-head {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   max-width: 680px;
   margin: 0 auto 16px;
@@ -1069,3 +1086,10 @@ html.in-app.is-card .sugg { width: auto; }
 }
 .panel-h { margin: 0; font-size: 13px; font-weight: 600; color: var(--ink); letter-spacing: 0; }
 .panel-h-gap { margin-top: 14px; }
+
+.icon-rot { display: inline-grid; place-items: center; }
+.diff-arrow { display: inline-grid; place-items: center; color: var(--ink-3); }
+
+.doc-icon { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 7px; background: var(--hover); color: var(--ink-2); flex: none; }
+.doc-item.is-active .doc-icon { background: var(--page); color: var(--brand); box-shadow: 0 0 0 1px var(--line); }
+.doc-text { display: flex; flex-direction: column; min-width: 0; }

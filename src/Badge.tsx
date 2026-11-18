@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { IconSpark } from "./components/Icons";
+import { IconCheck, IconPower, IconSpark } from "./components/Icons";
 import { badgeDrag, badgeExpand, currentField, openPanel, type BadgeState } from "./lib/everywhere";
 import { inApp, onAppEvent } from "./lib/platform";
 import { loadSettings, saveSettings } from "./lib/storage";
@@ -92,9 +92,7 @@ export default function Badge() {
       {expanded && (
         <div className="badge-actions" role="toolbar" aria-label="Matra quick actions">
           <button className="badge-action" aria-label="Turn off Matra in this app" title="Turn off in this app" onClick={turnOffHere}>
-            <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M12 3v8M6.3 6.8a8 8 0 1 0 11.4 0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-            </svg>
+            <IconPower size={14} />
           </button>
           <button
             className="badge-action"
@@ -134,9 +132,7 @@ export default function Badge() {
         {state.status === "issues" ? (
           <span className="badge-count">{state.count > 99 ? "99+" : state.count}</span>
         ) : state.status === "clean" && !expanded ? (
-          <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M4.5 12.5l4.5 4.5L19.5 6.5" fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
+          <IconCheck size={13} />
         ) : expanded || state.status === "checking" ? (
           <svg width="15" height="15" viewBox="0 0 64 64" aria-hidden="true">
             <path d="M19 50V24l13 16 13-16v26" fill="none" stroke="currentColor" strokeWidth="7" strokeLinejoin="bevel" />

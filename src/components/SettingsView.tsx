@@ -11,20 +11,20 @@ import { inApp, useApiKey } from "../lib/platform";
 import { listGoogleModels } from "../lib/providers/google";
 import { ANTHROPIC_MODELS, DEFAULT_GOOGLE_MODEL, PROVIDERS, type Provider, type Settings } from "../lib/types";
 import { checkForUpdate, currentVersion, installUpdate, type UpdateState } from "../lib/updater";
-import { IconCheck, IconX } from "./Icons";
+import { IconAI, IconApps, IconCheck, IconDictionary, IconGeneral, IconStyle, IconUpdates, IconX } from "./Icons";
 
 /** Browser preview only (?previewApp): show the Mac-app-only rows so they can be reviewed. */
 const showAppRows = inApp || (typeof location !== "undefined" && new URLSearchParams(location.search).has("previewApp"));
 
 export type SettingsSection = "general" | "ai" | "apps" | "dictionary" | "style" | "updates";
 
-const SECTIONS: { id: SettingsSection; label: string; hint: string }[] = [
-  { id: "general", label: "General", hint: "Checking and language" },
-  { id: "ai", label: "AI provider", hint: "Gemini or Claude, key, model" },
-  { id: "apps", label: "Other apps", hint: "Badge, permission, shortcut" },
-  { id: "dictionary", label: "Dictionary", hint: "Your words, muted suggestions" },
-  { id: "style", label: "Style guide", hint: "Your own writing rules" },
-  { id: "updates", label: "Updates", hint: "Version and diagnostics" },
+const SECTIONS: { id: SettingsSection; label: string; hint: string; Icon: (p: { size?: number }) => React.ReactElement; tint: string }[] = [
+  { id: "general", label: "General", hint: "How and when Matra checks your writing.", Icon: IconGeneral, tint: "slate" },
+  { id: "ai", label: "AI provider", hint: "Choose Gemini or Claude, add your key, pick a model.", Icon: IconAI, tint: "pink" },
+  { id: "apps", label: "Other apps", hint: "Matra in Mail, Slack, Chrome and every other app.", Icon: IconApps, tint: "indigo" },
+  { id: "dictionary", label: "Dictionary", hint: "Words Matra should accept, and suggestions you turned off.", Icon: IconDictionary, tint: "teal" },
+  { id: "style", label: "Style guide", hint: "Your own rules, checked in every app.", Icon: IconStyle, tint: "amber" },
+  { id: "updates", label: "Updates", hint: "Your version, new releases and diagnostics.", Icon: IconUpdates, tint: "blue" },
 ];
 
 interface Props {
@@ -59,14 +59,19 @@ export function SettingsView(p: Props) {
             aria-current={s.id === p.section ? "page" : undefined}
             onClick={() => p.onSection(s.id)}
           >
+            <span className={`tile tile-${s.tint}`} aria-hidden="true">
+              <s.Icon size={15} />
+            </span>
             <span>{s.label}</span>
-            <small>{s.hint}</small>
           </button>
         ))}
       </nav>
       <section className="settings-page" aria-labelledby="settings-heading">
         <header className="settings-head">
-          <h1 id="settings-heading">{current.label}</h1>
+          <div>
+            <h1 id="settings-heading">{current.label}</h1>
+            <p className="settings-sub">{current.hint}</p>
+          </div>
           <button className="btn btn-quiet btn-sm" onClick={p.onClose}>
             Done
           </button>

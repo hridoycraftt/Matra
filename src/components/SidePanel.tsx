@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { CATEGORIES, REWRITE_MODES, type Category, type Issue, type RewriteMode } from "../lib/types";
 import { IssueMenu } from "./IssueMenu";
-import { IconArrowDown, IconCheck, IconCopy, IconSpark, IconX, LogoMark } from "./Icons";
+import { IconArrowDown, IconArrowRight, IconCheck, IconCopy, IconSpark, IconX, LogoMark } from "./Icons";
 
 export type CheckStatus = "idle" | "checking" | "done" | "error";
 
@@ -138,6 +138,14 @@ function Review(p: Props) {
         <div className="notice">This document is long, so only the first part was checked.</div>
       )}
 
+      {p.check.status === "idle" && p.issues.length === 0 ? (
+        <div className="empty small-empty">
+          <LogoMark />
+          <h3>Ready when you are</h3>
+          <p>Matra checks your text each time you pause. To check right now, press Check or ⌘↩.</p>
+        </div>
+      ) : (
+      <>
       <div className="filters" role="group" aria-label="Filter suggestions">
         <button className={`chip${filter === "all" ? " is-on" : ""}`} onClick={() => setFilter("all")}>
           All <span>{p.issues.length}</span>
@@ -175,7 +183,7 @@ function Review(p: Props) {
             </div>
             <div className="diff">
               <del>{i.original}</del>
-              <span aria-hidden="true">→</span>
+              <span className="diff-arrow" aria-hidden="true"><IconArrowRight size={14} /></span>
               <ins>{i.replacement || "(remove)"}</ins>
               {i.alternatives?.map((alt) => (
                 <button
@@ -216,6 +224,9 @@ function Review(p: Props) {
           </li>
         ))}
       </ul>
+
+      </>
+      )}
 
       {p.check.status === "done" && p.issues.length === 0 && (
         <div className="empty small-empty">
