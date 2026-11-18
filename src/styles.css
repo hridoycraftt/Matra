@@ -1423,3 +1423,61 @@ html.is-panel .empty p { font-size: 12px; }
 }
 .ai-ask input:focus { outline: none; box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand) 55%, transparent); }
 .ai-label { font-size: 12px; color: var(--ink-3); margin-bottom: 6px; }
+
+/* ============ Badge: final layout (authoritative) ============
+   The pill hugs its content with the same 2px padding on every side; the window is
+   sized from the measured pill, so nothing is ever lopsided. */
+html.is-badge .badge-wrap {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  width: auto;
+  height: 28px;
+  margin: 0;
+  padding: 0;
+  gap: 0;
+  border-radius: 99px;
+  background: transparent;
+  box-shadow: none;
+  animation: none;
+}
+html.is-badge .badge-wrap.is-open {
+  gap: 2px;
+  padding: 2px;
+  background: #fff;
+  box-shadow: 0 2px 10px rgba(13, 12, 34, 0.18), 0 0 0 1px rgba(13, 12, 34, 0.12);
+  animation: pill-in 160ms var(--ease) both;
+}
+html.is-badge .badge-actions { display: flex; gap: 2px; margin: 0; }
+html.is-badge .badge-action { width: 24px; height: 24px; margin: 0; }
+html.is-badge .badge-btn { width: 26px; height: 26px; margin: 1px; }
+html.is-badge .badge-wrap.is-open .badge-btn { width: 24px; height: 24px; margin: 0; box-shadow: none; }
+html.is-badge .badge-count { font-size: 11.5px; }
+/* The red counter sits inside its slot with the same breathing room the icons have. */
+html.is-badge .badge-wrap.is-open { padding: 2px 3px; }
+html.is-badge .badge-wrap.is-open .badge-btn { width: 22px; height: 22px; margin: 1px; }
+
+/* Rewrite pill inside the floating card: presets in a row, "Tell Matra to…" as its own line */
+.sel-card-pill { padding: 0; }
+.sel-pill.is-inline {
+  display: grid;
+  grid-template-columns: 24px repeat(4, auto) 1fr;
+  align-items: center;
+  gap: 2px;
+  padding: 6px;
+}
+.sel-pill.is-inline .sel-mark { width: 24px; }
+.sel-pill.is-inline .sel-btn-ask {
+  grid-column: 1 / -1;
+  justify-self: stretch;
+  text-align: left;
+  padding: 0 9px 0 33px;
+  border-top: 1px solid var(--line);
+  border-radius: 0 0 7px 7px;
+  height: 32px;
+  margin-top: 2px;
+}
+.sel-pill.is-inline .sel-ask { grid-column: 1 / -1; }

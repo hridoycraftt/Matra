@@ -5,9 +5,6 @@ import { inApp, onAppEvent } from "./lib/platform";
 import { loadSettings, saveSettings } from "./lib/storage";
 
 const DRAG_THRESHOLD = 4;
-const DOT = 30;
-/** Three actions to the left of the main button when hovered: off, feedback, AI. */
-const ACTIONS = 3 * 26 + 3 * 3 + 6;
 const FEEDBACK_URL = "https://github.com/hridoycraftt/matra/issues/new";
 
 /**
@@ -33,12 +30,18 @@ export default function Badge() {
   }, []);
 
   const issues = state.status === "issues" ? state : null;
-  const mainWidth = DOT;
+  const wrap = useRef<HTMLDivElement>(null);
 
-  // The window is exactly as wide as what it shows.
+  // The window is exactly as wide as what it shows (measured, so padding is always even).
   useEffect(() => {
-    badgeWidth(mainWidth + (expanded ? ACTIONS : 0));
-  }, [mainWidth, expanded]);
+    const el = wrap.current;
+    if (!el) return;
+    const report = () => badgeWidth(Math.ceil(el.getBoundingClientRect().width) + 2);
+    report();
+    const ro = new ResizeObserver(report);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   const expand = (on: boolean) => {
     clearTimeout(collapseTimer.current);
@@ -96,6 +99,7 @@ export default function Badge() {
 
   return (
     <div
+      ref={wrap}
       className={`badge-wrap${expanded ? " is-open" : ""}${dragging ? " is-dragging" : ""}`}
       onPointerEnter={() => !dragging && expand(true)}
       onPointerLeave={() => {
