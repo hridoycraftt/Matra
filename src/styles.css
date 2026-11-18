@@ -789,8 +789,9 @@ html.in-app.is-card .sugg { width: auto; }
 /* Badge: a quiet dot, a pill of actions on hover */
 .badge-wrap { display: flex; justify-content: flex-end; align-items: center; height: 30px; width: 100%; }
 .badge-wrap.is-open {
-  gap: 2px;
-  padding: 0 1px 0 4px;
+  justify-content: flex-end;
+  gap: 4px;
+  padding: 0 2px 0 4px;
   margin: 1px;
   height: 28px;
   border-radius: 99px;
@@ -800,7 +801,7 @@ html.in-app.is-card .sugg { width: auto; }
   transform-origin: right center;
 }
 @keyframes pill-in { from { opacity: 0; transform: scaleX(0.6); } }
-.badge-actions { display: flex; gap: 2px; margin-right: auto; }
+.badge-actions { display: flex; gap: 2px; }
 .badge-action {
   display: grid;
   place-items: center;
@@ -1238,3 +1239,80 @@ html.ul-patterns .overlay-delivery { border-bottom: 3px double var(--c-delivery)
   .page { max-width: 820px; }
   .editor-backdrop, .editor-input { font-size: 18px; }
 }
+
+/* Settings → Apps */
+.tile-green { background: linear-gradient(180deg, #4cc38a, #27a06a); }
+.applist-tools { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; }
+.search {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 8px;
+  background: var(--page);
+  box-shadow: 0 0 0 1px var(--line-2);
+  color: var(--ink-3);
+}
+.search input { flex: 1; min-width: 0; border: 0; background: transparent; outline: none; color: var(--ink); }
+.search:focus-within { box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand) 60%, transparent); }
+.applist-filter { flex: none; width: 220px; }
+.app-row { min-height: 46px; padding-top: 6px; padding-bottom: 6px; }
+.app-name { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.app-name .srow-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.app-avatar {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  color: #fff;
+  font: 700 13px/1 var(--font-ui);
+  flex: none;
+}
+@media (max-width: 820px) {
+  .applist-tools { flex-direction: column; align-items: stretch; }
+  .applist-filter { width: 100%; }
+}
+
+/* Hovered pill: actions and the dot/counter share one evenly padded surface. */
+.badge-wrap.is-open .badge-split { margin: 0; padding: 0; background: transparent; animation: none; }
+.badge-action { width: 24px; height: 24px; }
+
+/* ============ Floating panel, compact (other apps) ============ */
+html.is-panel .mini-head { padding: 8px 8px 7px 12px; gap: 6px; }
+html.is-panel .mini-title strong { font-size: 13px; }
+html.is-panel .mini-head .icon-btn { width: 24px; height: 24px; }
+html.is-panel .mini-text {
+  margin: 8px 10px 0;
+  padding: 8px 10px;
+  max-height: 92px;
+  -webkit-mask-image: linear-gradient(180deg, #000 70%, transparent);
+  mask-image: linear-gradient(180deg, #000 70%, transparent);
+}
+html.is-panel .mini-text:focus-within { -webkit-mask-image: none; mask-image: none; max-height: 140px; }
+html.is-panel .mini .editor-backdrop, html.is-panel .mini .editor-input { font-size: 13px; line-height: 1.55; }
+html.is-panel .panel.panel-compact { gap: 8px; padding: 8px 10px 12px; }
+html.is-panel .segmented button { height: 24px; font-size: 12px; }
+html.is-panel .scorecard { padding: 8px 10px; gap: 10px; }
+html.is-panel .ring, html.is-panel .ring svg { width: 46px; height: 46px; }
+html.is-panel .ring-label { font-size: 14px; }
+html.is-panel .panel-h { font-size: 12px; }
+html.is-panel .tone-summary, html.is-panel .tone { font-size: 11.5px; }
+html.is-panel .chip { height: 22px; font-size: 11.5px; padding: 0 7px; }
+html.is-panel .card { padding: 9px 10px; }
+html.is-panel .diff { font-size: 13px; margin-top: 5px; }
+html.is-panel .agents { gap: 6px; }
+html.is-panel .agent-head { padding: 7px 9px; gap: 9px; }
+html.is-panel .agent-head .tile { width: 22px; height: 22px; border-radius: 6px; }
+html.is-panel .agent-title strong { font-size: 12.5px; }
+html.is-panel .agent-title span { font-size: 11px; }
+html.is-panel .agent-body { padding: 0 9px 10px; gap: 8px; }
+html.is-panel .rules { font-size: 12.5px; }
+html.is-panel .btn { height: 26px; font-size: 12.5px; }
+html.is-panel .btn-tile { height: 28px; font-size: 12px; }
+html.is-panel .rewrite-grid { gap: 5px; }
+html.is-panel .empty { padding: 16px 8px; }
+html.is-panel .empty h3 { font-size: 13px; }
+html.is-panel .empty p { font-size: 12px; }

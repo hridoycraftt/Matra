@@ -122,6 +122,56 @@ pub fn place_badge<R: Runtime>(app: &AppHandle<R>, f: &FieldInfo) {
     }
 }
 
+/// Is Matra switched off for this app? Entries match the app's name, or its name
+/// followed by a version ("Adobe Photoshop" also covers "Adobe Photoshop 2026").
+pub fn is_ignored(ignored: &[String], app: &str) -> bool {
+    let app = app.to_lowercase();
+    ignored.iter().any(|a| {
+        app == *a
+            || app
+                .strip_prefix(&format!("{a} "))
+                .is_some_and(|rest| rest.chars().next().is_some_and(|c| c.is_ascii_digit()))
+    })
+}
+
+/// Apps installed on this Mac, by name, for Settings → Apps. Read fresh each time, so
+/// newly installed apps appear and removed ones disappear.
+pub fn installed_apps() -> Vec<String> {
+    let mut dirs = vec![
+        "/Applications".to_string(),
+        "/Applications/Utilities".to_string(),
+        "/System/Applications".to_string(),
+        "/System/Applications/Utilities".to_string(),
+    ];
+    if let Ok(home) = std::env::var("HOME") {
+        dirs.push(format!("{home}/Applications"));
+    }
+    let mut names: Vec<String> = Vec::new();
+    for dir in dirs {
+        let Ok(entries) = std::fs::read_dir(&dir) else { continue };
+        for e in entries.flatten() {
+            let name = e.file_name().to_string_lossy().to_string();
+            if let Some(app) = name.strip_suffix(".app") {
+                names.push(app.to_string());
+            } else if e.path().is_dir() && dir == "/Applications" {
+                // Suites keep apps one folder down (e.g. /Applications/Adobe Photoshop 2026/…app).
+                if let Ok(inner) = std::fs::read_dir(e.path()) {
+                    for i in inner.flatten() {
+                        let n = i.file_name().to_string_lossy().to_string();
+                        if let Some(app) = n.strip_suffix(".app") {
+                            names.push(app.to_string());
+                        }
+                    }
+                }
+            }
+        }
+    }
+    names.retain(|n| n != "Matra" && !n.starts_with('.'));
+    names.sort_by_key(|n| n.to_lowercase());
+    names.dedup();
+    names
+}
+
 pub fn badge_width(state: &State) -> f64 {
     let w = *state.badge_width.lock().unwrap();
     if w < BADGE_SIZE { BADGE_SIZE } else { w.min(240.0) }
@@ -161,7 +211,7 @@ pub enum PanelMode {
 }
 
 pub const CARD_WIDTH: f64 = 340.0;
-pub const FULL_SIZE: (f64, f64) = (400.0, 560.0);
+pub const FULL_SIZE: (f64, f64) = (360.0, 480.0);
 const GAP: f64 = 8.0;
 const MARGIN: f64 = 8.0;
 
@@ -278,6 +328,15 @@ pub fn place_panel<R: Runtime>(app: &AppHandle<R>, focus: bool, mode: PanelMode,
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn ignored_apps_match_names_and_versioned_names() {
+        let ignored = vec!["figma".to_string(), "adobe photoshop".to_string()];
+        assert!(is_ignored(&ignored, "Figma"));
+        assert!(is_ignored(&ignored, "Adobe Photoshop 2026"));
+        assert!(!is_ignored(&ignored, "Figma Agent Helper2"));
+        assert!(!is_ignored(&ignored, "Mail"));
+    }
     const SCREEN: Rect = Rect { x: 0.0, y: 25.0, w: 1440.0, h: 850.0 };
 
     fn inside(x: f64, y: f64, w: f64, h: f64) -> bool {
@@ -358,7 +417,7 @@ pub fn start_watcher<R: Runtime>(app: AppHandle<R>) {
 
             let field = ax::focused_field().filter(|f| {
                 let ignored = state.ignored_apps.lock().unwrap();
-                f.pid != own_pid && !ignored.iter().any(|a| f.app.to_lowercase() == *a)
+                f.pid != own_pid && !is_ignored(&ignored, &f.app)
             });
 
             let Some(field) = field else {

@@ -408,12 +408,7 @@ export default function Panel() {
         compact
       />
 
-      <footer className="mini-foot">
-        <span className="muted small">Accepted fixes go straight into {field?.app ?? "the app"}.</span>
-        <button className="btn btn-primary btn-sm" onClick={close}>
-          <IconCheck /> Done
-        </button>
-      </footer>
+
     </div>
   );
 }

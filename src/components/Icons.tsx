@@ -16,7 +16,7 @@ import {
   MoreHorizontalIcon,
   PaintBrush01Icon,
   PlusSignIcon,
-  PowerServiceIcon,
+  ShutDownIcon,
   Settings01Icon,
   SlidersHorizontalIcon,
   SparklesIcon,
@@ -33,6 +33,8 @@ import {
   QuoteDownIcon,
   Idea01Icon,
   UserEdit01Icon,
+  Search01Icon,
+  AppStoreIcon,
 } from "@hugeicons/core-free-icons";
 
 type P = { size?: number };
@@ -56,7 +58,7 @@ export const IconCopy = make(Copy01Icon);
 export const IconArrowDown = make(ArrowDown02Icon);
 export const IconArrowRight = make(ArrowRight02Icon);
 export const IconMore = make(MoreHorizontalIcon);
-export const IconPower = make(PowerServiceIcon);
+export const IconPower = make(ShutDownIcon);
 
 // Settings sections
 export const IconGeneral = make(SlidersHorizontalIcon);
@@ -77,6 +79,8 @@ export const IconPlagiarism = make(DocumentValidationIcon);
 export const IconCitation = make(QuoteDownIcon);
 export const IconIdea = make(Idea01Icon);
 export const IconVoice = make(UserEdit01Icon);
+export const IconSearch = make(Search01Icon);
+export const IconAppList = make(AppStoreIcon);
 
 export const IconChevron = ({ size = 16, dir = "down" }: P & { dir?: "down" | "left" | "right" | "up" }) => (
   <span className="icon-rot" style={{ transform: `rotate(${{ down: 0, left: 90, up: 180, right: -90 }[dir]}deg)` }}>

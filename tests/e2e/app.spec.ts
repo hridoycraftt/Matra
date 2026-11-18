@@ -438,3 +438,19 @@ test("selected text in another app: pick an action and get a rewrite to replace"
   await expect(card.locator(".writer-output")).toHaveText("Thanks for your quick reply.");
   await expect(card.getByRole("button", { name: "Replace" })).toBeVisible();
 });
+
+test("Settings → Apps: every app has a switch; design and code apps start off", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await page.getByRole("navigation", { name: "Settings sections" }).getByRole("button", { name: "Apps", exact: true }).click();
+  await expect(page.getByRole("switch", { name: "Matra in Figma" })).toHaveAttribute("aria-checked", "false");
+  await expect(page.getByRole("switch", { name: "Matra in Mail" })).toHaveAttribute("aria-checked", "true");
+  await page.getByRole("switch", { name: "Matra in Mail" }).click();
+  await expect(page.getByRole("switch", { name: "Matra in Mail" })).toHaveAttribute("aria-checked", "false");
+  await page.getByLabel("Search apps").fill("fig");
+  await expect(page.locator(".app-row")).toHaveCount(1);
+  await page.getByRole("switch", { name: "Matra in Figma" }).click();
+  const off = await page.evaluate(() => JSON.parse(localStorage.getItem("matra.settings.v1")!).ignoredApps);
+  expect(off).toContain("Mail");
+  expect(off).not.toContain("Figma");
+});

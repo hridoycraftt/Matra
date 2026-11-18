@@ -96,6 +96,12 @@ fn reset_accessibility(app: AppHandle) -> bool {
     }
 }
 
+/// Apps installed on this Mac, for Settings → Apps.
+#[tauri::command]
+fn installed_apps() -> Vec<String> {
+    everywhere::installed_apps()
+}
+
 #[tauri::command]
 fn open_accessibility_settings() {
     #[cfg(target_os = "macos")]
@@ -321,6 +327,7 @@ pub fn run() {
             configure_everywhere,
             accessibility_status,
             open_accessibility_settings,
+            installed_apps,
             reset_accessibility,
             current_field,
             write_field,

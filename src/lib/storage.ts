@@ -1,4 +1,4 @@
-import { DEFAULT_GOALS, DEFAULT_SETTINGS, type MatraDoc, type Settings } from "./types";
+import { DEFAULT_GOALS, DEFAULT_OFF_APPS, DEFAULT_SETTINGS, type MatraDoc, type Settings } from "./types";
 
 const DOCS = "matra.docs.v1";
 const SETTINGS = "matra.settings.v1";
@@ -57,7 +57,14 @@ export function loadSettings(): Settings {
     saved.provider ??= "anthropic";
   }
   delete saved.model;
-  return { ...DEFAULT_SETTINGS, ...saved };
+  const merged = { ...DEFAULT_SETTINGS, ...saved };
+  // Once: start with Matra off in design and code apps (the user can switch them on).
+  if ((merged.appDefaultsVersion ?? 0) < 1) {
+    const have = new Set(merged.ignoredApps.map((a) => a.toLowerCase()));
+    merged.ignoredApps = [...merged.ignoredApps, ...DEFAULT_OFF_APPS.filter((a) => !have.has(a.toLowerCase()))];
+    merged.appDefaultsVersion = 1;
+  }
+  return merged;
 }
 export const SETTINGS_KEY = SETTINGS;
 export const saveSettings = (s: Settings) => write(SETTINGS, s);

@@ -11,19 +11,21 @@ import { inApp, useApiKey } from "../lib/platform";
 import { listGoogleModels } from "../lib/providers/google";
 import { ANTHROPIC_MODELS, DEFAULT_GOOGLE_MODEL, PROVIDERS, type Provider, type Settings } from "../lib/types";
 import { checkForUpdate, currentVersion, installUpdate, type UpdateState } from "../lib/updater";
-import { IconAI, IconApps, IconCheck, IconDictionary, IconGeneral, IconSnippets, IconStyle, IconUpdates, IconVoice, IconX } from "./Icons";
+import { IconAI, IconApps, IconCheck, IconDictionary, IconGeneral, IconSnippets, IconStyle, IconUpdates, IconVoice, IconX, IconAppList, IconSearch } from "./Icons";
 import { learnVoice } from "../lib/agents";
+import { installedApps } from "../lib/everywhere";
 import { friendlyError } from "../lib/ai";
 
 /** Browser preview only (?previewApp): show the Mac-app-only rows so they can be reviewed. */
 const showAppRows = inApp || (typeof location !== "undefined" && new URLSearchParams(location.search).has("previewApp"));
 
-export type SettingsSection = "general" | "ai" | "apps" | "voice" | "dictionary" | "style" | "snippets" | "updates";
+export type SettingsSection = "general" | "ai" | "apps" | "applist" | "voice" | "dictionary" | "style" | "snippets" | "updates";
 
 const SECTIONS: { id: SettingsSection; label: string; hint: string; Icon: (p: { size?: number }) => React.ReactElement; tint: string }[] = [
   { id: "general", label: "General", hint: "How and when Matra checks your writing.", Icon: IconGeneral, tint: "slate" },
   { id: "ai", label: "AI provider", hint: "Choose Gemini or Claude, add your key, pick a model.", Icon: IconAI, tint: "pink" },
   { id: "apps", label: "Other apps", hint: "Matra in Mail, Slack, Chrome and every other app.", Icon: IconApps, tint: "indigo" },
+  { id: "applist", label: "Apps", hint: "Choose which apps Matra works in. New apps appear here by themselves.", Icon: IconAppList, tint: "green" },
   { id: "voice", label: "Your voice", hint: "Matra learns how you write and rewrites in your style.", Icon: IconVoice, tint: "orange" },
   { id: "dictionary", label: "Dictionary", hint: "Words Matra should accept, and suggestions you turned off.", Icon: IconDictionary, tint: "teal" },
   { id: "style", label: "Style guide", hint: "Your own rules, checked in every app.", Icon: IconStyle, tint: "amber" },
@@ -83,6 +85,7 @@ export function SettingsView(p: SettingsProps) {
         {p.section === "general" && <General {...p} />}
         {p.section === "ai" && <AIProvider {...p} />}
         {p.section === "apps" && <OtherApps {...p} />}
+        {p.section === "applist" && <AppList {...p} />}
         {p.section === "voice" && <Voice {...p} />}
         {p.section === "dictionary" && <Dictionary {...p} />}
         {p.section === "style" && <StyleGuide {...p} />}
@@ -283,9 +286,9 @@ export function usePermission() {
   return trusted;
 }
 
-export function OtherApps({ settings, onSettings }: SettingsProps) {
+export function OtherApps({ settings, onSettings, onSection }: SettingsProps) {
+  const onOpenApps = () => onSection("applist");
   const trusted = usePermission();
-  const [ignored, setIgnored] = useState(settings.ignoredApps.join(", "));
   const [repairing, setRepairing] = useState(false);
 
   return (
@@ -356,15 +359,10 @@ export function OtherApps({ settings, onSettings }: SettingsProps) {
             onChange={(v) => onSettings({ ...settings, selectionActions: v })}
           />
         </Row>
-        <Row label="Don't check in" detail="App names, separated by commas.">
-          <input
-            className="field-input"
-            value={ignored}
-            placeholder="e.g. Terminal, Xcode"
-            onChange={(e) => setIgnored(e.target.value)}
-            onBlur={() => onSettings({ ...settings, ignoredApps: ignored.split(",").map((s) => s.trim()).filter(Boolean) })}
-            aria-label="Apps where Matra should not check"
-          />
+        <Row label="Apps" detail={`Matra is off in ${settings.ignoredApps.length} app${settings.ignoredApps.length === 1 ? "" : "s"}.`}>
+          <button className="btn btn-quiet btn-sm" onClick={() => onOpenApps?.()}>
+            Choose apps
+          </button>
         </Row>
         <Row label="Badge position" detail="Drag the badge anywhere on a text box; Matra remembers it for that app.">
           <button
@@ -396,6 +394,79 @@ function Chips({ items, onRemove, label }: { items: string[]; onRemove(x: string
       ))}
     </ul>
   );
+}
+
+function AppList({ settings, onSettings }: SettingsProps) {
+  const [apps, setApps] = useState<string[] | null>(null);
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<"all" | "on" | "off">("all");
+  // Read the installed apps now and every few seconds, so installs and removals show up.
+  useEffect(() => {
+    let alive = true;
+    const load = () => installedApps().then((a) => alive && setApps(a)).catch(() => alive && setApps([]));
+    load();
+    const t = setInterval(load, 5000);
+    return () => {
+      alive = false;
+      clearInterval(t);
+    };
+  }, []);
+  const off = new Set(settings.ignoredApps.map((a) => a.toLowerCase()));
+  const isOff = (name: string) =>
+    off.has(name.toLowerCase()) || [...off].some((o) => name.toLowerCase().startsWith(o + " ") && /^\d/.test(name.slice(o.length + 1)));
+  const toggle = (name: string, on: boolean) => {
+    const lower = name.toLowerCase();
+    const rest = settings.ignoredApps.filter((a) => a.toLowerCase() !== lower && !(lower.startsWith(a.toLowerCase() + " ") && /^\d/.test(name.slice(a.length + 1))));
+    onSettings({ ...settings, ignoredApps: on ? rest : [...rest, name] });
+  };
+  const shown = (apps ?? []).filter(
+    (a) => a.toLowerCase().includes(query.trim().toLowerCase()) && (filter === "all" || (filter === "off") === isOff(a)),
+  );
+  const onCount = (apps ?? []).filter((a) => !isOff(a)).length;
+  return (
+    <>
+      <div className="applist-tools">
+        <label className="search">
+          <IconSearch size={15} />
+          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search apps" aria-label="Search apps" />
+        </label>
+        <div className="segmented applist-filter" role="tablist" aria-label="Show apps">
+          {(["all", "on", "off"] as const).map((f) => (
+            <button key={f} role="tab" aria-selected={filter === f} onClick={() => setFilter(f)}>
+              {f === "all" ? `All ${apps?.length ?? ""}` : f === "on" ? `On ${onCount}` : `Off ${(apps?.length ?? 0) - onCount}`}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="sgroup">
+        {apps === null ? (
+          <div className="sblock"><p className="srow-detail">Looking at your apps…</p></div>
+        ) : shown.length === 0 ? (
+          <div className="sblock"><p className="srow-detail">No apps match.</p></div>
+        ) : (
+          shown.map((name) => (
+            <div className="srow app-row" key={name}>
+              <div className="app-name">
+                <span className="app-avatar" style={{ background: avatarColor(name) }} aria-hidden="true">
+                  {name.replace(/^(Adobe|Microsoft|Google)\s+/, "").charAt(0).toUpperCase()}
+                </span>
+                <span className="srow-label">{name}</span>
+              </div>
+              <Switch label={`Matra in ${name}`} checked={!isOff(name)} onChange={(on) => toggle(name, on)} />
+            </div>
+          ))
+        )}
+      </div>
+      <p className="snote">Design and code apps like Figma, Xcode and Terminal start switched off; switch any app on or off here.</p>
+    </>
+  );
+}
+
+function avatarColor(name: string): string {
+  const hues = [345, 230, 172, 38, 262, 205, 18, 140];
+  let h = 0;
+  for (const c of name) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return `hsl(${hues[h % hues.length]} 55% 52%)`;
 }
 
 function Voice({ settings, onSettings }: SettingsProps) {

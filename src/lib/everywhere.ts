@@ -31,6 +31,14 @@ export async function accessibilityStatus(prompt: boolean): Promise<boolean> {
   return invoke<boolean>("accessibility_status", { prompt });
 }
 
+/** Apps installed on this Mac (read fresh each call, so new and removed apps show up). */
+export async function installedApps(): Promise<string[]> {
+  if (!inApp) {
+    return ["Figma", "Google Chrome", "Mail", "Messages", "Notes", "Notion", "Pages", "Safari", "Slack", "Terminal", "WhatsApp", "Xcode"];
+  }
+  return invoke<string[]>("installed_apps");
+}
+
 /** Remove a stale permission entry from an older Matra build, then ask macOS again. */
 export const resetAccessibility = () => (inApp ? invoke<boolean>("reset_accessibility") : Promise.resolve(false));
 

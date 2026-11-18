@@ -116,7 +116,29 @@ export interface Settings {
   voice: { samples: string; profile: string; traits: string[]; enabled: boolean };
   /** Show rewrite actions when text is selected in another app. */
   selectionActions: boolean;
+  /** Which version of the default app list has been applied (see DEFAULT_OFF_APPS). */
+  appDefaultsVersion: number;
 }
+
+/**
+ * Apps where Matra starts switched off: design canvases and code editors, where its
+ * suggestions get in the way. Each can be switched on in Settings → Apps.
+ */
+export const DEFAULT_OFF_APPS = [
+  "Figma",
+  "Sketch",
+  "Framer",
+  "Adobe Photoshop",
+  "Adobe Illustrator",
+  "Adobe InDesign",
+  "Affinity Designer",
+  "Xcode",
+  "Terminal",
+  "iTerm",
+  "Visual Studio Code",
+  "Cursor",
+  "Zed",
+];
 
 /** Identifies one exact change, for "Incorrect suggestion". */
 export const rejectKey = (original: string, replacement: string) => `${original.trim()}\u2192${replacement.trim()}`.toLowerCase();
@@ -167,6 +189,7 @@ export const DEFAULT_SETTINGS: Settings = {
   onboarded: false,
   voice: { samples: "", profile: "", traits: [], enabled: false },
   selectionActions: true,
+  appDefaultsVersion: 0,
 };
 
 export function activeModel(s: Settings): string {
