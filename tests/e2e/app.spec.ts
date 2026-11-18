@@ -1,13 +1,13 @@
 import { expect, test } from "@playwright/test";
-import { mockClaude, withKey } from "./mock-claude";
+import { mockClaude, mockGemini, withKey } from "./mock-claude";
 
 test("asks for an API key before the first check", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Connect Matra's AI" })).toBeVisible();
   await page.getByRole("button", { name: "Open Settings" }).click();
-  await page.getByLabel("Anthropic API key").fill("sk-ant-test");
+  await page.getByLabel("Google Gemini API key").fill("AIza-test");
   await page.getByRole("button", { name: "Save", exact: true }).click();
-  await expect(page.getByText("● Key saved")).toBeVisible();
+  await expect(page.getByText("● Google Gemini key saved")).toBeVisible();
 });
 
 test("checks English and Bangla, underlines issues, and applies a fix", async ({ page }) => {
@@ -103,4 +103,52 @@ test("narrow window has no horizontal scroll", async ({ page }) => {
   await page.goto("/");
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   expect(overflow).toBeLessThanOrEqual(0);
+});
+
+test("works with a free Google Gemini key", async ({ page }) => {
+  const urls = await mockGemini(page, { written: "আমি কাল তোমাকে ফোন দেব।" });
+  await page.goto("/");
+  await page.getByRole("button", { name: /^Check/ }).click();
+  await expect(page.locator(".card")).toHaveCount(5);
+  expect(urls[0]).toContain("gemini-flash-latest:generateContent");
+
+  const editor = page.getByLabel("Document text");
+  await editor.evaluate((el: HTMLTextAreaElement) => {
+    el.focus();
+    el.setSelectionRange(el.value.indexOf("ami kal"), el.value.length);
+  });
+  await page.getByRole("tab", { name: "Write with AI" }).click();
+  await page.getByRole("button", { name: "Banglish → Bangla" }).click();
+  await expect(page.locator(".writer-output")).toHaveText("আমি কাল তোমাকে ফোন দেব।");
+});
+
+test("settings switch between Google and Anthropic keys", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await expect(page.getByRole("radio", { name: "Google Gemini" })).toHaveAttribute("aria-checked", "true");
+  await page.getByLabel("Google Gemini API key").fill("AIza-test");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByText("● Google Gemini key saved")).toBeVisible();
+  await page.getByRole("radio", { name: "Anthropic Claude" }).click();
+  await expect(page.getByLabel("Anthropic Claude API key")).toBeVisible();
+});
+
+test("floating panel preview checks text from another app", async ({ page }) => {
+  await mockGemini(page, {
+    check: {
+      language: "en",
+      score: 61,
+      tone_labels: ["polite"],
+      tone_summary: "Polite.",
+      issues: [
+        { category: "correctness", original: "you're", replacement: "your", prefix: "Thank you for ", title: "Wrong word", explanation: "Possessive." },
+        { category: "correctness", original: "has", replacement: "have", prefix: "I ", title: "Agreement", explanation: "I have." },
+      ],
+    },
+  });
+  await page.goto("/?view=panel");
+  await expect(page.getByText("in Mail")).toBeVisible();
+  await expect(page.locator(".card")).toHaveCount(2, { timeout: 10_000 });
+  await page.locator(".card", { hasText: "Agreement" }).getByRole("button", { name: "Accept" }).click();
+  await expect(page.getByLabel("Document text")).toHaveValue(/I have attached/);
 });

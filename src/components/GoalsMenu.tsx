@@ -13,7 +13,7 @@ const OPTIONS: { key: keyof Goals; label: string; values: [string, string][] }[]
   { key: "intent", label: "Goal", values: [["inform", "Inform"], ["convince", "Convince"], ["describe", "Describe"], ["tell_story", "Tell a story"]] },
 ];
 
-export function GoalsMenu({ goals, onChange }: { goals: Goals; onChange(g: Goals): void }) {
+export function GoalsMenu({ goals, onChange, compact }: { goals: Goals; onChange(g: Goals): void; compact?: boolean }) {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
 
@@ -33,8 +33,15 @@ export function GoalsMenu({ goals, onChange }: { goals: Goals; onChange(g: Goals
 
   return (
     <div className="popover-root" ref={root}>
-      <button className="btn btn-quiet" aria-expanded={open} aria-haspopup="dialog" onClick={() => setOpen((o) => !o)}>
-        <IconTarget /> <span className="hide-narrow">{summary}</span>
+      <button
+        className={compact ? "icon-btn" : "btn btn-quiet"}
+        aria-expanded={open}
+        aria-haspopup="dialog"
+        aria-label={compact ? `Writing goals: ${summary}` : undefined}
+        title={compact ? summary : undefined}
+        onClick={() => setOpen((o) => !o)}
+      >
+        <IconTarget /> {!compact && <span className="hide-narrow">{summary}</span>}
       </button>
       {open && (
         <div className="popover" role="dialog" aria-label="Writing goals">

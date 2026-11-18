@@ -90,6 +90,51 @@ export async function mockClaude(
   return log;
 }
 
+/** Use Claude (Anthropic) with a test key. */
 export async function withKey(page: Page) {
-  await page.addInitScript(() => localStorage.setItem("matra.devApiKey", "sk-ant-test"));
+  await page.addInitScript(() => {
+    localStorage.setItem("matra.devApiKey.anthropic", "sk-ant-test");
+    if (!localStorage.getItem("matra.settings.v1"))
+      localStorage.setItem("matra.settings.v1", JSON.stringify({ provider: "anthropic" }));
+  });
+}
+
+/** Use Google Gemini with a test key, and answer its requests. */
+export async function mockGemini(page: Page, opts: { check?: object; written?: string } = {}) {
+  await page.addInitScript(() => {
+    localStorage.setItem("matra.devApiKey.google", "AIza-test");
+    localStorage.setItem("matra.settings.v1", JSON.stringify({ provider: "google" }));
+  });
+  const urls: string[] = [];
+  await page.route("https://generativelanguage.googleapis.com/**", async (route) => {
+    const req = route.request();
+    const cors = { "access-control-allow-origin": "*", "access-control-allow-headers": "*" };
+    if (req.method() === "OPTIONS") return route.fulfill({ status: 204, headers: cors });
+    urls.push(req.url());
+    if (req.url().includes(":streamGenerateContent")) {
+      const text = opts.written ?? "A shorter version.";
+      const chunks = text.match(/.{1,12}/gsu) ?? [];
+      const body = chunks
+        .map((c) => `data: ${JSON.stringify({ candidates: [{ content: { role: "model", parts: [{ text: c }] }, index: 0 }] })}\r\n\r\n`)
+        .join("");
+      return route.fulfill({ status: 200, headers: { ...cors, "content-type": "text/event-stream" }, body });
+    }
+    if (req.url().includes("/models?") || req.url().endsWith("/models")) {
+      return route.fulfill({
+        status: 200,
+        headers: { ...cors, "content-type": "application/json" },
+        body: JSON.stringify({ models: [{ name: "models/gemini-test-flash", displayName: "Gemini Test Flash", supportedActions: ["generateContent"] }] }),
+      });
+    }
+    return route.fulfill({
+      status: 200,
+      headers: { ...cors, "content-type": "application/json" },
+      body: JSON.stringify({
+        candidates: [
+          { content: { role: "model", parts: [{ text: JSON.stringify(opts.check ?? WELCOME_CHECK) }] }, finishReason: "STOP", index: 0 },
+        ],
+      }),
+    });
+  });
+  return urls;
 }

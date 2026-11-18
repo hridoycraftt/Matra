@@ -21,19 +21,59 @@
         "center": true,
         "titleBarStyle": "Overlay",
         "hiddenTitle": true,
-        "trafficLightPosition": { "x": 18, "y": 22 }
+        "trafficLightPosition": {
+          "x": 18,
+          "y": 22
+        }
+      },
+      {
+        "label": "panel",
+        "title": "Matra",
+        "url": "index.html?view=panel",
+        "width": 400,
+        "height": 560,
+        "minWidth": 340,
+        "minHeight": 420,
+        "visible": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "resizable": true,
+        "focus": false,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
+        "visibleOnAllWorkspaces": true
+      },
+      {
+        "label": "badge",
+        "title": "Matra badge",
+        "url": "index.html?view=badge",
+        "width": 30,
+        "height": 30,
+        "visible": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "resizable": false,
+        "focus": false,
+        "decorations": false,
+        "transparent": true,
+        "shadow": false,
+        "visibleOnAllWorkspaces": true
       }
     ],
     "security": {
       "csp": "default-src 'self'; connect-src 'self' ipc: http://ipc.localhost https://api.anthropic.com; img-src 'self' data:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; script-src 'self'"
-    }
+    },
+    "macOSPrivateApi": true
   },
   "bundle": {
     "active": true,
-    "targets": ["app", "dmg"],
+    "targets": [
+      "app",
+      "dmg"
+    ],
     "category": "Productivity",
     "shortDescription": "AI writing partner for English and Bangla",
-    "copyright": "© 2026 Matra",
+    "copyright": "\u00a9 2026 Matra",
     "createUpdaterArtifacts": true,
     "icon": [
       "icons/32x32.png",
@@ -50,7 +90,9 @@
   "plugins": {
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEJDMzE2MDc2RkQzMkMzRkEKUldUNnd6TDlkbUF4dkprc2dDVk92N1g0NkFPU1hYUnVwODVPS29obENPZGpoSER5SXBSUE53V1IK",
-      "endpoints": ["https://github.com/hridoycraftt/matra/releases/latest/download/latest.json"]
+      "endpoints": [
+        "https://github.com/hridoycraftt/matra/releases/latest/download/latest.json"
+      ]
     }
   }
 }

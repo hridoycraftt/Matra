@@ -3,16 +3,14 @@ import { Editor, type EditorHandle } from "./components/Editor";
 import { GoalsMenu } from "./components/GoalsMenu";
 import { IconCheck, IconGear, IconPlus, IconTrash, LogoMark } from "./components/Icons";
 import { SettingsSheet } from "./components/SettingsSheet";
-import { SidePanel, type CheckView, type WriterView } from "./components/SidePanel";
-import { checkText, MAX_CHECK_CHARS, streamCompose, streamRewrite, friendlyError } from "./lib/ai";
-import { applyIssue, locateIssues, remapIssues } from "./lib/locate";
-import { clearApiKey, inApp, loadApiKey, saveApiKey } from "./lib/platform";
+import { SidePanel } from "./components/SidePanel";
+import { clearApiKey, inApp, onAppEvent, saveApiKey, useApiKey, useSettings } from "./lib/platform";
 import { computeStats, formatMinutes } from "./lib/stats";
-import { docTitle, loadActiveId, loadDocs, loadSettings, newDoc, saveActiveId, saveDocs, saveSettings } from "./lib/storage";
-import type { Category, Issue, MatraDoc, RewriteMode, Settings } from "./lib/types";
+import { docTitle, loadActiveId, loadDocs, newDoc, saveActiveId, saveDocs } from "./lib/storage";
+import type { MatraDoc } from "./lib/types";
+import { useAssistant, useSelectionWords } from "./lib/useAssistant";
 import { checkForUpdate, type UpdateState } from "./lib/updater";
-
-const AUTO_CHECK_DELAY = 1600;
+import { configureEverywhere } from "./lib/everywhere";
 
 export default function App() {
   const [docs, setDocs] = useState<MatraDoc[]>(loadDocs);
@@ -21,38 +19,17 @@ export default function App() {
     const all = loadDocs();
     return saved && all.some((d) => d.id === saved) ? saved : all[0].id;
   });
-  const [settings, setSettingsState] = useState<Settings>(loadSettings);
-  const [apiKey, setApiKey] = useState<string | null>(null);
+  const [settings, setSettings] = useSettings();
+  const [apiKey] = useApiKey(settings.provider);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [update, setUpdate] = useState<UpdateState>({ status: "idle" });
 
-  const [issues, setIssues] = useState<Issue[]>([]);
-  const [activeIssue, setActiveIssue] = useState<string | null>(null);
-  const [check, setCheck] = useState<CheckView>({ status: "idle" });
-  const [tab, setTab] = useState<"review" | "write">("review");
-  const [writer, setWriter] = useState<WriterView | null>(null);
-  const [selectionWords, setSelectionWords] = useState(0);
-
   const editor = useRef<EditorHandle>(null);
   const doc = docs.find((d) => d.id === activeId) ?? docs[0];
-  const textRef = useRef(doc.text);
-  textRef.current = doc.text;
-  const checkAbort = useRef<AbortController | null>(null);
-  const writerAbort = useRef<AbortController | null>(null);
-  const writerRange = useRef<{ start: number; end: number; source: string } | null>(null);
-  const lastChecked = useRef<string>("");
 
   // ---------- persistence ----------
   useEffect(() => saveDocs(docs), [docs]);
   useEffect(() => saveActiveId(activeId), [activeId]);
-  const setSettings = (s: Settings) => {
-    setSettingsState(s);
-    saveSettings(s);
-  };
-
-  useEffect(() => {
-    loadApiKey().then(setApiKey).catch(() => setApiKey(null));
-  }, []);
 
   // Quietly look for an update shortly after launch; the user installs it from Settings.
   useEffect(() => {
@@ -69,26 +46,26 @@ export default function App() {
     setDocs((all) => all.map((d) => (d.id === id ? { ...d, ...patch, updatedAt: Date.now() } : d)));
   }, []);
 
-  const resetReview = () => {
-    checkAbort.current?.abort();
-    setIssues([]);
-    setActiveIssue(null);
-    setCheck({ status: "idle" });
-    lastChecked.current = "";
-  };
+  const a = useAssistant({
+    text: doc.text,
+    setText: (text) => patchDoc(doc.id, { text }),
+    goals: doc.goals,
+    settings,
+    apiKey,
+    editor,
+  });
+  const selectionWords = useSelectionWords();
 
   const openDoc = (id: string) => {
     if (id === activeId) return;
-    resetReview();
-    setWriter(null);
+    a.reset();
     setActiveId(id);
   };
 
   const createDoc = () => {
     const d = newDoc();
     setDocs((all) => [d, ...all]);
-    resetReview();
-    setWriter(null);
+    a.reset();
     setActiveId(d.id);
     requestAnimationFrame(() => editor.current?.focus());
   };
@@ -98,157 +75,11 @@ export default function App() {
       const rest = all.filter((d) => d.id !== id);
       const next = rest.length ? rest : [newDoc()];
       if (id === activeId) {
-        resetReview();
+        a.reset();
         setActiveId(next[0].id);
       }
       return next;
     });
-  };
-
-  const onText = (text: string) => {
-    setIssues((prev) => remapIssues(doc.text, text, prev));
-    patchDoc(doc.id, { text });
-  };
-
-  // ---------- checking ----------
-  const runCheck = useCallback(async () => {
-    const text = textRef.current;
-    if (!text.trim()) {
-      setIssues([]);
-      setCheck({ status: "idle" });
-      return;
-    }
-    checkAbort.current?.abort();
-    const ctrl = new AbortController();
-    checkAbort.current = ctrl;
-    lastChecked.current = text;
-    setCheck((c) => ({ ...c, status: "checking", error: undefined }));
-    try {
-      const result = await checkText(apiKey, text, doc.goals, settings, ctrl.signal);
-      if (ctrl.signal.aborted) return;
-      const located = locateIssues(text, result.issues);
-      // The user may have kept typing while we waited.
-      setIssues(remapIssues(text, textRef.current, located));
-      setCheck({
-        status: "done",
-        score: result.score,
-        toneLabels: result.tone_labels,
-        toneSummary: result.tone_summary,
-        truncated: text.length > MAX_CHECK_CHARS,
-      });
-    } catch (err) {
-      if (ctrl.signal.aborted) return;
-      setCheck((c) => ({ ...c, status: "error", error: friendlyError(err).message }));
-    }
-  }, [apiKey, doc.goals, settings]);
-
-  useEffect(() => {
-    if (!settings.autoCheck || !apiKey) return;
-    if (!doc.text.trim() || doc.text === lastChecked.current) return;
-    const t = setTimeout(runCheck, AUTO_CHECK_DELAY);
-    return () => clearTimeout(t);
-  }, [doc.text, settings.autoCheck, apiKey, runCheck]);
-
-  // Goals change what counts as a problem: re-check.
-  const goalsKey = JSON.stringify(doc.goals);
-  const prevGoals = useRef(goalsKey);
-  useEffect(() => {
-    if (prevGoals.current === goalsKey) return;
-    prevGoals.current = goalsKey;
-    lastChecked.current = "";
-    if (apiKey && settings.autoCheck) runCheck();
-  }, [goalsKey, apiKey, settings.autoCheck, runCheck]);
-
-  const accept = (id: string) => {
-    const r = applyIssue(doc.text, issues, id);
-    lastChecked.current = r.text; // a fix is not a reason to re-check everything
-    setIssues(r.issues);
-    patchDoc(doc.id, { text: r.text });
-    setActiveIssue(null);
-  };
-  const dismiss = (id: string) => setIssues((all) => all.filter((i) => i.id !== id));
-  const acceptAll = (cat: Category | "all") => {
-    let text = doc.text;
-    let list = issues;
-    for (const i of [...issues].filter((i) => cat === "all" || i.category === cat).sort((a, b) => b.start - a.start)) {
-      const r = applyIssue(text, list, i.id);
-      text = r.text;
-      list = r.issues;
-    }
-    lastChecked.current = text;
-    setIssues(list);
-    patchDoc(doc.id, { text });
-  };
-  const activate = (id: string) => {
-    setActiveIssue(id);
-    const i = issues.find((x) => x.id === id);
-    if (i) editor.current?.select(i.start, i.end);
-  };
-
-  // ---------- AI writing ----------
-  const startWriter = async (
-    view: Omit<WriterView, "output" | "streaming">,
-    run: (onText: (s: string) => void, signal: AbortSignal) => Promise<string>,
-  ) => {
-    writerAbort.current?.abort();
-    const ctrl = new AbortController();
-    writerAbort.current = ctrl;
-    setTab("write");
-    setWriter({ ...view, output: "", streaming: true });
-    try {
-      const out = await run((s) => setWriter((w) => (w ? { ...w, output: s } : w)), ctrl.signal);
-      setWriter((w) => (w ? { ...w, output: out, streaming: false } : w));
-    } catch (err) {
-      if (ctrl.signal.aborted) {
-        setWriter((w) => (w ? { ...w, streaming: false } : w));
-        return;
-      }
-      setWriter((w) => (w ? { ...w, streaming: false, error: friendlyError(err).message } : w));
-    }
-  };
-
-  const rewrite = (mode: RewriteMode, custom?: string) => {
-    const sel = editor.current?.selection() ?? { start: 0, end: 0 };
-    const hasSel = sel.end > sel.start;
-    const start = hasSel ? sel.start : 0;
-    const end = hasSel ? sel.end : doc.text.length;
-    const source = doc.text.slice(start, end);
-    if (!source.trim()) return;
-    writerRange.current = { start, end, source };
-    const label = mode === "custom" ? "Custom rewrite" : `Rewrite · ${mode.replace(/_/g, " ")}`;
-    startWriter({ kind: "rewrite", label, hasRange: true }, (on, signal) =>
-      streamRewrite(apiKey, { text: source, mode, custom, goals: doc.goals, settings }, on, signal),
-    );
-  };
-
-  const compose = (prompt: string) => {
-    const sel = editor.current?.selection() ?? { start: doc.text.length, end: doc.text.length };
-    writerRange.current = { start: sel.end, end: sel.end, source: "" };
-    startWriter({ kind: "compose", label: "New writing", hasRange: false }, (on, signal) =>
-      streamCompose(apiKey, { prompt, context: doc.text, goals: doc.goals, settings }, on, signal),
-    );
-  };
-
-  const applyWriter = (how: "replace" | "insert") => {
-    if (!writer?.output) return;
-    const range = writerRange.current;
-    const text = doc.text;
-    let next: string;
-    let caret: number;
-    if (how === "replace" && range && text.slice(range.start, range.end) === range.source) {
-      next = text.slice(0, range.start) + writer.output + text.slice(range.end);
-      caret = range.start + writer.output.length;
-    } else {
-      const at = range ? Math.min(range.end, text.length) : text.length;
-      const before = text.slice(0, at);
-      const gap = before && !before.endsWith("\n") ? "\n\n" : "";
-      next = before + gap + writer.output + text.slice(at);
-      caret = at + gap.length + writer.output.length;
-    }
-    setIssues((prev) => remapIssues(text, next, prev));
-    patchDoc(doc.id, { text: next });
-    setWriter(null);
-    requestAnimationFrame(() => editor.current?.select(caret, caret));
   };
 
   // ---------- keyboard ----------
@@ -263,23 +94,18 @@ export default function App() {
         setSettingsOpen(true);
       } else if (e.key === "Enter" && document.activeElement?.classList.contains("editor-input")) {
         e.preventDefault();
-        runCheck();
+        a.runCheck();
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   });
 
+  // The menu bar item can ask the main window to open Settings.
+  useEffect(() => onAppEvent("matra://open-settings", () => setSettingsOpen(true)), []);
   useEffect(() => {
-    const onSel = () => {
-      const el = document.activeElement;
-      if (!(el instanceof HTMLTextAreaElement) || !el.classList.contains("editor-input")) return;
-      const s = el.value.slice(el.selectionStart, el.selectionEnd).trim();
-      setSelectionWords(s ? s.split(/\s+/).length : 0);
-    };
-    document.addEventListener("selectionchange", onSel);
-    return () => document.removeEventListener("selectionchange", onSel);
-  }, []);
+    configureEverywhere(settings);
+  }, [settings]);
 
   const stats = useMemo(() => computeStats(doc.text), [doc.text]);
   const sorted = useMemo(() => [...docs].sort((a, b) => b.updatedAt - a.updatedAt), [docs]);
@@ -332,13 +158,13 @@ export default function App() {
             <button
               className="btn btn-primary"
               onClick={() => {
-                setTab("review");
-                runCheck();
+                a.setTab("review");
+                a.runCheck();
               }}
-              disabled={!apiKey || check.status === "checking"}
+              disabled={!apiKey || a.check.status === "checking"}
               title="Check now (⌘↩)"
             >
-              <IconCheck /> {check.status === "checking" ? "Checking…" : "Check"}
+              <IconCheck /> {a.check.status === "checking" ? "Checking…" : "Check"}
             </button>
           </div>
         </header>
@@ -347,14 +173,10 @@ export default function App() {
             <Editor
               ref={editor}
               text={doc.text}
-              issues={issues}
-              activeId={activeIssue}
-              onChange={onText}
-              onCaret={(pos) => {
-                const hit = issues.find((i) => pos >= i.start && pos <= i.end);
-                setActiveIssue(hit?.id ?? null);
-                if (hit) setTab("review");
-              }}
+              issues={a.issues}
+              activeId={a.activeIssue}
+              onChange={a.onTextChange}
+              onCaret={a.onCaret}
               placeholder="Start writing in English or Bangla…"
             />
           </article>
@@ -369,24 +191,24 @@ export default function App() {
       </main>
 
       <SidePanel
-        tab={tab}
-        onTab={setTab}
-        check={check}
-        issues={issues}
-        activeId={activeIssue}
-        onActivate={activate}
-        onAccept={accept}
-        onDismiss={dismiss}
-        onAcceptAll={acceptAll}
+        tab={a.tab}
+        onTab={a.setTab}
+        check={a.check}
+        issues={a.issues}
+        activeId={a.activeIssue}
+        onActivate={a.activate}
+        onAccept={a.accept}
+        onDismiss={a.dismiss}
+        onAcceptAll={a.acceptAll}
         hasKey={!!apiKey}
         onOpenSettings={() => setSettingsOpen(true)}
-        writer={writer}
+        writer={a.writer}
         selectionWords={selectionWords}
-        onRewrite={rewrite}
-        onCompose={compose}
-        onWriterApply={applyWriter}
-        onWriterDiscard={() => setWriter(null)}
-        onWriterStop={() => writerAbort.current?.abort()}
+        onRewrite={a.rewrite}
+        onCompose={a.compose}
+        onWriterApply={a.applyWriter}
+        onWriterDiscard={a.discardWriter}
+        onWriterStop={a.stopWriter}
       />
 
       <SettingsSheet
@@ -394,16 +216,11 @@ export default function App() {
         onClose={() => setSettingsOpen(false)}
         settings={settings}
         onSettings={setSettings}
-        hasKey={!!apiKey}
-        onSaveKey={async (k) => {
-          await saveApiKey(k);
-          setApiKey(k);
-          lastChecked.current = "";
+        onSaveKey={async (provider, k) => {
+          await saveApiKey(provider, k);
+          a.invalidate();
         }}
-        onClearKey={async () => {
-          await clearApiKey();
-          setApiKey(null);
-        }}
+        onClearKey={(provider) => clearApiKey(provider)}
         update={update}
         onUpdate={setUpdate}
       />

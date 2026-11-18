@@ -41,11 +41,12 @@ interface Props {
   onWriterApply(how: "replace" | "insert"): void;
   onWriterDiscard(): void;
   onWriterStop(): void;
+  compact?: boolean;
 }
 
 export function SidePanel(p: Props) {
   return (
-    <aside className="panel" aria-label="Matra assistant">
+    <aside className={`panel${p.compact ? " panel-compact" : ""}`} aria-label="Matra assistant">
       <div className="segmented" role="tablist">
         <button role="tab" aria-selected={p.tab === "review"} onClick={() => p.onTab("review")}>
           Review

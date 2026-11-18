@@ -14,6 +14,7 @@ interface Props {
   onChange(text: string): void;
   onCaret(pos: number): void;
   placeholder?: string;
+  compact?: boolean;
 }
 
 /**
@@ -21,7 +22,7 @@ interface Props {
  * so typing, IME input (Bangla keyboards), undo and spellcheck stay native.
  */
 export const Editor = forwardRef<EditorHandle, Props>(function Editor(
-  { text, issues, activeId, onChange, onCaret, placeholder },
+  { text, issues, activeId, onChange, onCaret, placeholder, compact },
   ref,
 ) {
   const area = useRef<HTMLTextAreaElement>(null);
@@ -67,7 +68,7 @@ export const Editor = forwardRef<EditorHandle, Props>(function Editor(
   const report = () => onCaret(area.current?.selectionStart ?? 0);
 
   return (
-    <div className="editor">
+    <div className={`editor${compact ? " is-compact" : ""}`}>
       <div className="editor-backdrop" aria-hidden="true">
         {segments}
       </div>

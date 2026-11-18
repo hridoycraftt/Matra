@@ -49,7 +49,17 @@ export const saveDocs = (docs: MatraDoc[]) => write(DOCS, docs);
 export const loadActiveId = () => read<string | null>(ACTIVE, null);
 export const saveActiveId = (id: string) => write(ACTIVE, id);
 
-export const loadSettings = (): Settings => ({ ...DEFAULT_SETTINGS, ...read<Partial<Settings>>(SETTINGS, {}) });
+export function loadSettings(): Settings {
+  const saved = read<Partial<Settings> & { model?: string }>(SETTINGS, {});
+  // v0.1 stored a single Claude model and had no provider choice.
+  if (saved.model && !saved.anthropicModel) {
+    saved.anthropicModel = saved.model;
+    saved.provider ??= "anthropic";
+  }
+  delete saved.model;
+  return { ...DEFAULT_SETTINGS, ...saved };
+}
+export const SETTINGS_KEY = SETTINGS;
 export const saveSettings = (s: Settings) => write(SETTINGS, s);
 
 export function docTitle(d: MatraDoc): string {

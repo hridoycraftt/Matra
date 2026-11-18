@@ -80,22 +80,60 @@ export const REWRITE_MODES: { id: RewriteMode; label: string; group: "style" | "
   { id: "to_english", label: "Translate to English", group: "language" },
 ];
 
+export type Provider = "google" | "anthropic";
+
 export interface Settings {
-  model: string;
+  provider: Provider;
+  anthropicModel: string;
+  googleModel: string;
   autoCheck: boolean;
   englishDialect: "US" | "UK";
   explanationLanguage: "auto" | "en" | "bn";
+  /** Watch text fields in other apps. */
+  everywhere: boolean;
+  /** Open the suggestion panel by itself when a mistake is found in another app. */
+  autoOpenPanel: boolean;
+  ignoredApps: string[];
 }
 
-export const MODELS = [
+export const PROVIDERS: { id: Provider; label: string; keyHint: string; keyUrl: string; placeholder: string }[] = [
+  {
+    id: "google",
+    label: "Google Gemini",
+    keyHint: "Free key from Google AI Studio",
+    keyUrl: "aistudio.google.com/apikey",
+    placeholder: "AIza…",
+  },
+  {
+    id: "anthropic",
+    label: "Anthropic Claude",
+    keyHint: "Paid key from the Anthropic Console",
+    keyUrl: "console.anthropic.com",
+    placeholder: "sk-ant-…",
+  },
+];
+
+export const ANTHROPIC_MODELS = [
   { id: "claude-opus-5-5", label: "Claude Opus 5.5", note: "Best quality" },
   { id: "claude-sonnet-5-5", label: "Claude Sonnet 5.5", note: "Faster, cheaper" },
   { id: "claude-haiku-5-5", label: "Claude Haiku 5.5", note: "Fastest, cheapest" },
 ];
 
+/** Google's alias that always points at the newest Flash model (free tier in AI Studio). */
+export const DEFAULT_GOOGLE_MODEL = "gemini-flash-latest";
+
 export const DEFAULT_SETTINGS: Settings = {
-  model: "claude-opus-5-5",
+  provider: "google",
+  anthropicModel: "claude-opus-5-5",
+  googleModel: DEFAULT_GOOGLE_MODEL,
   autoCheck: true,
   englishDialect: "US",
   explanationLanguage: "auto",
+  everywhere: true,
+  autoOpenPanel: true,
+  ignoredApps: [],
 };
+
+export function activeModel(s: Settings): string {
+  return s.provider === "google" ? s.googleModel : s.anthropicModel;
+}

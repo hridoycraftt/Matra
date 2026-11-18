@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react";
-import { MODELS, type Settings } from "../lib/types";
+import { listGoogleModels } from "../lib/providers/google";
+import { accessibilityStatus, autostart, openAccessibilitySettings } from "../lib/everywhere";
+import { inApp, useApiKey } from "../lib/platform";
+import { ANTHROPIC_MODELS, DEFAULT_GOOGLE_MODEL, PROVIDERS, type Provider, type Settings } from "../lib/types";
 import { checkForUpdate, currentVersion, installUpdate, type UpdateState } from "../lib/updater";
 import { IconX } from "./Icons";
 
@@ -8,16 +11,13 @@ interface Props {
   onClose(): void;
   settings: Settings;
   onSettings(s: Settings): void;
-  hasKey: boolean;
-  onSaveKey(key: string): Promise<void>;
-  onClearKey(): Promise<void>;
+  onSaveKey(provider: Provider, key: string): Promise<void>;
+  onClearKey(provider: Provider): Promise<void>;
   update: UpdateState;
   onUpdate(s: UpdateState): void;
 }
 
 export function SettingsSheet(p: Props) {
-  const [key, setKey] = useState("");
-  const [saving, setSaving] = useState(false);
   const [version, setVersion] = useState("…");
 
   useEffect(() => {
@@ -43,51 +43,24 @@ export function SettingsSheet(p: Props) {
         </header>
 
         <section className="group">
-          <h3>AI connection</h3>
-          <p className="muted small">
-            Matra uses Claude through your own Anthropic API key. Get one at console.anthropic.com. The key is kept in
-            your Mac's Keychain.
-          </p>
-          {p.hasKey ? (
-            <div className="row">
-              <span className="status-ok">● Key saved</span>
-              <button className="btn btn-quiet btn-sm" onClick={() => p.onClearKey()}>Remove key</button>
-            </div>
-          ) : (
-            <form
-              className="inline-form"
-              onSubmit={async (e) => {
-                e.preventDefault();
-                if (!key.trim()) return;
-                setSaving(true);
-                try {
-                  await p.onSaveKey(key.trim());
-                  setKey("");
-                } finally {
-                  setSaving(false);
-                }
-              }}
-            >
-              <input
-                type="password"
-                value={key}
-                onChange={(e) => setKey(e.target.value)}
-                placeholder="sk-ant-…"
-                aria-label="Anthropic API key"
-                autoComplete="off"
-              />
-              <button className="btn btn-primary" disabled={!key.trim() || saving}>Save</button>
-            </form>
-          )}
-          <label className="field">
-            <span>Model</span>
-            <select value={p.settings.model} onChange={(e) => set("model", e.target.value)}>
-              {MODELS.map((m) => (
-                <option key={m.id} value={m.id}>{m.label} — {m.note}</option>
-              ))}
-            </select>
-          </label>
+          <h3>AI provider</h3>
+          <div className="segmented segmented-wide" role="radiogroup" aria-label="AI provider">
+            {PROVIDERS.map((x) => (
+              <button
+                key={x.id}
+                role="radio"
+                aria-checked={p.settings.provider === x.id}
+                aria-selected={p.settings.provider === x.id}
+                onClick={() => set("provider", x.id)}
+              >
+                {x.label}
+              </button>
+            ))}
+          </div>
+          <KeyAndModel {...p} />
         </section>
+
+        <Everywhere settings={p.settings} onSettings={p.onSettings} />
 
         <section className="group">
           <h3>Checking</h3>
@@ -125,6 +98,181 @@ export function SettingsSheet(p: Props) {
         </section>
       </div>
     </div>
+  );
+}
+
+function KeyAndModel(p: Props) {
+  const provider = PROVIDERS.find((x) => x.id === p.settings.provider)!;
+  const [apiKey] = useApiKey(provider.id);
+  const [draft, setDraft] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [googleModels, setGoogleModels] = useState<{ id: string; label: string }[]>([]);
+
+  useEffect(() => {
+    if (provider.id !== "google" || !apiKey) return;
+    let alive = true;
+    listGoogleModels(apiKey)
+      .then((m) => alive && setGoogleModels(m))
+      .catch(() => alive && setGoogleModels([]));
+    return () => {
+      alive = false;
+    };
+  }, [provider.id, apiKey]);
+
+  const googleOptions = [
+    { id: DEFAULT_GOOGLE_MODEL, label: "Latest Gemini Flash (recommended, free)" },
+    { id: "gemini-flash-lite-latest", label: "Latest Gemini Flash-Lite (fastest, free)" },
+    ...googleModels.filter((m) => m.id !== DEFAULT_GOOGLE_MODEL && m.id !== "gemini-flash-lite-latest"),
+  ];
+  if (!googleOptions.some((m) => m.id === p.settings.googleModel)) {
+    googleOptions.push({ id: p.settings.googleModel, label: p.settings.googleModel });
+  }
+
+  return (
+    <>
+      <p className="muted small">
+        {provider.keyHint}: <strong>{provider.keyUrl}</strong>. Keys are kept in your Mac's Keychain.
+      </p>
+      {apiKey ? (
+        <div className="row">
+          <span className="status-ok">● {provider.label} key saved</span>
+          <button className="btn btn-quiet btn-sm" onClick={() => p.onClearKey(provider.id)}>Remove key</button>
+        </div>
+      ) : (
+        <form
+          className="inline-form"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            if (!draft.trim()) return;
+            setSaving(true);
+            try {
+              await p.onSaveKey(provider.id, draft.trim());
+              setDraft("");
+            } finally {
+              setSaving(false);
+            }
+          }}
+        >
+          <input
+            type="password"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder={provider.placeholder}
+            aria-label={`${provider.label} API key`}
+            autoComplete="off"
+          />
+          <button className="btn btn-primary" disabled={!draft.trim() || saving}>Save</button>
+        </form>
+      )}
+      <label className="field">
+        <span>Model</span>
+        {provider.id === "google" ? (
+          <select value={p.settings.googleModel} onChange={(e) => p.onSettings({ ...p.settings, googleModel: e.target.value })}>
+            {googleOptions.map((m) => (
+              <option key={m.id} value={m.id}>{m.label}</option>
+            ))}
+          </select>
+        ) : (
+          <select value={p.settings.anthropicModel} onChange={(e) => p.onSettings({ ...p.settings, anthropicModel: e.target.value })}>
+            {ANTHROPIC_MODELS.map((m) => (
+              <option key={m.id} value={m.id}>{m.label} — {m.note}</option>
+            ))}
+          </select>
+        )}
+      </label>
+    </>
+  );
+}
+
+function Everywhere({ settings, onSettings }: { settings: Settings; onSettings(s: Settings): void }) {
+  const [trusted, setTrusted] = useState<boolean | null>(null);
+  const [atLogin, setAtLogin] = useState<boolean | null>(null);
+  const [ignored, setIgnored] = useState(settings.ignoredApps.join(", "));
+
+  useEffect(() => {
+    if (!inApp) return;
+    const refresh = () => accessibilityStatus(false).then(setTrusted);
+    refresh();
+    autostart.isEnabled().then(setAtLogin).catch(() => setAtLogin(null));
+    const t = setInterval(refresh, 2000);
+    return () => clearInterval(t);
+  }, []);
+
+  return (
+    <section className="group">
+      <h3>Matra in every app</h3>
+      <p className="muted small">
+        Matra watches the text box you're typing in — in Mail, Slack, Chrome, Notes, anywhere — checks it when you
+        pause, and shows a badge with the number of suggestions. Password fields are never read.
+      </p>
+      <label className="toggle">
+        <input
+          type="checkbox"
+          checked={settings.everywhere}
+          onChange={(e) => {
+            onSettings({ ...settings, everywhere: e.target.checked });
+            if (e.target.checked && inApp) accessibilityStatus(true).then(setTrusted);
+          }}
+        />
+        <span>Check my writing in other apps</span>
+      </label>
+      <label className="toggle">
+        <input
+          type="checkbox"
+          checked={settings.autoOpenPanel}
+          disabled={!settings.everywhere}
+          onChange={(e) => onSettings({ ...settings, autoOpenPanel: e.target.checked })}
+        />
+        <span>Open suggestions automatically when Matra finds a mistake</span>
+      </label>
+      {inApp ? (
+        <div className="row">
+          {trusted ? (
+            <span className="status-ok">● Accessibility access granted</span>
+          ) : (
+            <span className="status-warn">● Accessibility access needed</span>
+          )}
+          {!trusted && (
+            <button className="btn btn-quiet btn-sm" onClick={() => openAccessibilitySettings()}>
+              Open System Settings
+            </button>
+          )}
+        </div>
+      ) : (
+        <p className="muted small">This works in the installed Mac app. In the preview, try it with <strong>?view=panel</strong>.</p>
+      )}
+      <label className="field">
+        <span>Don't check in</span>
+        <input
+          className="field-input"
+          value={ignored}
+          placeholder="e.g. Terminal, Xcode"
+          onChange={(e) => setIgnored(e.target.value)}
+          onBlur={() =>
+            onSettings({
+              ...settings,
+              ignoredApps: ignored.split(",").map((s) => s.trim()).filter(Boolean),
+            })
+          }
+          aria-label="Apps where Matra should not check"
+        />
+      </label>
+      <p className="muted small">Shortcut: <kbd>⌃⌥M</kbd> opens Matra for the text you're in, or for the selected text.</p>
+      {inApp && atLogin !== null && (
+        <label className="toggle">
+          <input
+            type="checkbox"
+            checked={atLogin}
+            onChange={async (e) => {
+              const on = e.target.checked;
+              await (on ? autostart.enable() : autostart.disable());
+              setAtLogin(await autostart.isEnabled());
+            }}
+          />
+          <span>Start Matra when I log in</span>
+        </label>
+      )}
+    </section>
   );
 }
 

@@ -1,45 +1,24 @@
-import Anthropic from "@anthropic-ai/sdk";
-import type { AnthropicBeta } from "@anthropic-ai/sdk/resources/beta/beta";
-import type { BetaFallbacksParam } from "@anthropic-ai/sdk/resources/beta/messages/messages";
-import type { CheckResult, Goals, RewriteMode, Settings } from "./types";
+import { anthropicBackend } from "./providers/anthropic";
+import { googleBackend } from "./providers/google";
+import { MatraAIError, type Backend } from "./providers/types";
+import { activeModel, PROVIDERS, type CheckResult, type Goals, type RewriteMode, type Settings } from "./types";
+
+export { MatraAIError };
 
 /** Longest text sent in one check. Longer documents are checked in part, and the UI says so. */
 export const MAX_CHECK_CHARS = 20000;
 
-export class MatraAIError extends Error {
-  constructor(message: string, readonly kind: "no_key" | "auth" | "rate" | "network" | "refusal" | "other") {
-    super(message);
+function backend(apiKey: string | null, settings: Settings): Backend {
+  if (!apiKey) {
+    const p = PROVIDERS.find((x) => x.id === settings.provider)!;
+    throw new MatraAIError(`Add your ${p.label} API key in Settings to start checking.`, "no_key");
   }
-}
-
-let cached: { key: string; client: Anthropic } | null = null;
-function client(apiKey: string | null): Anthropic {
-  if (!apiKey) throw new MatraAIError("Add your Anthropic API key in Settings to start checking.", "no_key");
-  if (cached?.key !== apiKey) {
-    // Matra is a desktop app on the user's own Mac with the user's own key,
-    // so calling the API straight from the app's webview is intended here.
-    cached = { key: apiKey, client: new Anthropic({ apiKey, dangerouslyAllowBrowser: true, maxRetries: 2 }) };
-  }
-  return cached.client;
-}
-
-/** Server-side refusal fallback, for the models that accept it. */
-function fallbackParams(model: string): { betas?: AnthropicBeta[]; fallbacks?: BetaFallbacksParam } {
-  if (model === "claude-opus-5-5" || model === "claude-sonnet-5-5") {
-    return { betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" };
-  }
-  return {};
+  const model = activeModel(settings);
+  return settings.provider === "google" ? googleBackend(apiKey, model) : anthropicBackend(apiKey, model);
 }
 
 export function friendlyError(err: unknown): MatraAIError {
   if (err instanceof MatraAIError) return err;
-  if (err instanceof Anthropic.AuthenticationError || err instanceof Anthropic.PermissionDeniedError)
-    return new MatraAIError("Your API key was not accepted. Check it in Settings.", "auth");
-  if (err instanceof Anthropic.RateLimitError)
-    return new MatraAIError("Too many requests right now. Matra will try again shortly.", "rate");
-  if (err instanceof Anthropic.APIConnectionError)
-    return new MatraAIError("Can't reach the AI service. Check your internet connection.", "network");
-  if (err instanceof Anthropic.APIError) return new MatraAIError(`AI service error (${err.status}). Try again.`, "other");
   return new MatraAIError(err instanceof Error ? err.message : "Something went wrong.", "other");
 }
 
@@ -121,39 +100,29 @@ export async function checkText(
   settings: Settings,
   signal?: AbortSignal,
 ): Promise<CheckResult> {
-  const c = client(apiKey);
+  const ai = backend(apiKey, settings);
   const body = text.slice(0, MAX_CHECK_CHARS);
   const context = [
     `Goals: written for ${GOAL_TEXT.audience[goals.audience]}, ${GOAL_TEXT.formality[goals.formality]} formality, as ${GOAL_TEXT.domain[goals.domain]}, meant to ${GOAL_TEXT.intent[goals.intent]}.`,
     `English spelling: ${settings.englishDialect === "UK" ? "British" : "American"}. Bangla: standard cholito (প্রমিত চলিত).`,
     explanationLine(settings),
   ].join("\n");
-
+  const raw = await ai.json({
+    system: CHECK_SYSTEM,
+    user: `${context}\n\n<text>\n${body}\n</text>`,
+    schema: CHECK_SCHEMA,
+    signal,
+  });
+  let parsed: CheckResult;
   try {
-    const response = await c.beta.messages.create(
-      {
-        model: settings.model,
-        max_tokens: 16000,
-        ...fallbackParams(settings.model),
-        system: CHECK_SYSTEM,
-        output_config: { effort: "low", format: { type: "json_schema", schema: CHECK_SCHEMA } },
-        messages: [{ role: "user", content: `${context}\n\n<text>\n${body}\n</text>` }],
-      },
-      { signal },
-    );
-    if (response.stop_reason === "refusal") {
-      throw new MatraAIError("The AI declined to check this text.", "refusal");
-    }
-    const textBlock = response.content.find((b) => b.type === "text");
-    if (!textBlock || textBlock.type !== "text") throw new MatraAIError("The AI returned no result. Try again.", "other");
-    const parsed = JSON.parse(textBlock.text) as CheckResult;
-    parsed.score = Math.max(0, Math.min(100, Math.round(parsed.score)));
-    parsed.tone_labels = parsed.tone_labels.slice(0, 3);
-    return parsed;
-  } catch (err) {
-    if (signal?.aborted) throw err;
-    throw friendlyError(err);
+    parsed = JSON.parse(raw) as CheckResult;
+  } catch {
+    throw new MatraAIError("The AI returned an unreadable result. Try again.", "other");
   }
+  parsed.issues = Array.isArray(parsed.issues) ? parsed.issues : [];
+  parsed.score = Math.max(0, Math.min(100, Math.round(Number(parsed.score) || 0)));
+  parsed.tone_labels = (parsed.tone_labels ?? []).slice(0, 3);
+  return parsed;
 }
 
 const REWRITE_INSTRUCTIONS: Record<Exclude<RewriteMode, "custom">, string> = {
@@ -181,12 +150,9 @@ export async function streamRewrite(
 ): Promise<string> {
   const instruction = opts.mode === "custom" ? (opts.custom ?? "").trim() : REWRITE_INSTRUCTIONS[opts.mode];
   const goals = `The writer's goals: ${GOAL_TEXT.formality[opts.goals.formality]} formality, ${GOAL_TEXT.domain[opts.goals.domain]}, for ${GOAL_TEXT.audience[opts.goals.audience]}.`;
-  return streamText(
-    apiKey,
-    opts.settings.model,
-    `${instruction}\n${goals}\n\n<text>\n${opts.text}\n</text>`,
+  return backend(apiKey, opts.settings).stream(
+    { system: WRITER_SYSTEM, user: `${instruction}\n${goals}\n\n<text>\n${opts.text}\n</text>`, signal },
     onText,
-    signal,
   );
 }
 
@@ -201,41 +167,5 @@ export async function streamCompose(
     ? `\n\nThe document the user is working on (for context; do not repeat it):\n<document>\n${opts.context.slice(0, MAX_CHECK_CHARS)}\n</document>`
     : "";
   const goals = `Write for ${GOAL_TEXT.audience[opts.goals.audience]}, ${GOAL_TEXT.formality[opts.goals.formality]} formality, as ${GOAL_TEXT.domain[opts.goals.domain]}. Answer in the language the request is written in unless it asks for another.`;
-  return streamText(apiKey, opts.settings.model, `${opts.prompt.trim()}\n\n${goals}${ctx}`, onText, signal);
-}
-
-async function streamText(
-  apiKey: string | null,
-  model: string,
-  userContent: string,
-  onText: (soFar: string) => void,
-  signal?: AbortSignal,
-): Promise<string> {
-  const c = client(apiKey);
-  let soFar = "";
-  try {
-    const stream = c.beta.messages.stream(
-      {
-        model,
-        max_tokens: 64000,
-        ...fallbackParams(model),
-        system: WRITER_SYSTEM,
-        output_config: { effort: "low" },
-        messages: [{ role: "user", content: userContent }],
-      },
-      { signal },
-    );
-    for await (const event of stream) {
-      if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
-        soFar += event.delta.text;
-        onText(soFar);
-      }
-    }
-    const final = await stream.finalMessage();
-    if (final.stop_reason === "refusal") throw new MatraAIError("The AI declined this request.", "refusal");
-    return soFar.trim();
-  } catch (err) {
-    if (signal?.aborted) throw err;
-    throw friendlyError(err);
-  }
+  return backend(apiKey, opts.settings).stream({ system: WRITER_SYSTEM, user: `${opts.prompt.trim()}\n\n${goals}${ctx}`, signal }, onText);
 }
