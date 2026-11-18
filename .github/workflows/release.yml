@@ -9,6 +9,10 @@ on:
     branches: [main]
     paths: ["package.json"]
   workflow_dispatch:
+  # GitHub's macOS machines are sometimes all busy and a release gets cancelled.
+  # Every hour, try again if the current version still has no release (otherwise nothing runs).
+  schedule:
+    - cron: "23 * * * *"
 
 permissions:
   contents: write
