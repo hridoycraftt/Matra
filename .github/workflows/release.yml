@@ -41,7 +41,9 @@ jobs:
   release:
     needs: version
     if: needs.version.outputs.exists == 'false'
-    runs-on: macos-latest
+    # GitHub's Apple-silicon runners are often short of capacity; the Intel runner builds
+    # the same universal app (both architectures are cross-compiled).
+    runs-on: macos-15-intel
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

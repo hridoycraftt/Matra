@@ -1,6 +1,7 @@
 import { forwardRef, useImperativeHandle, useLayoutEffect, useRef, useState } from "react";
 import type { Issue, RewriteMode } from "../lib/types";
 import { SelectionPill } from "./SelectionPill";
+import { expandSnippet } from "../lib/snippets";
 
 export interface EditorHandle {
   focus(): void;
@@ -16,6 +17,7 @@ interface Props {
   onCaret(pos: number): void;
   placeholder?: string;
   compact?: boolean;
+  snippets?: { trigger: string; text: string }[];
   /** Quick rewrite of the selected text, from the pill that appears next to a selection. */
   onSelectionAction?(mode: RewriteMode, custom?: string): void;
 }
@@ -25,7 +27,7 @@ interface Props {
  * so typing, IME input (Bangla keyboards), undo and spellcheck stay native.
  */
 export const Editor = forwardRef<EditorHandle, Props>(function Editor(
-  { text, issues, activeId, onChange, onCaret, placeholder, compact, onSelectionAction },
+  { text, issues, activeId, onChange, onCaret, placeholder, compact, onSelectionAction, snippets },
   ref,
 ) {
   const area = useRef<HTMLTextAreaElement>(null);
@@ -101,7 +103,14 @@ export const Editor = forwardRef<EditorHandle, Props>(function Editor(
         aria-label="Document text"
         onChange={(e) => {
           setPill(null);
-          onChange(e.target.value);
+          const el = e.target;
+          const hit = snippets?.length ? expandSnippet(el.value, el.selectionStart, snippets) : null;
+          if (hit) {
+            onChange(hit.value);
+            requestAnimationFrame(() => el.setSelectionRange(hit.caret, hit.caret));
+          } else {
+            onChange(el.value);
+          }
         }}
         onClick={report}
         onMouseUp={(e) => maybeShowPill(e.clientX, e.clientY)}

@@ -11,12 +11,12 @@ import { inApp, useApiKey } from "../lib/platform";
 import { listGoogleModels } from "../lib/providers/google";
 import { ANTHROPIC_MODELS, DEFAULT_GOOGLE_MODEL, PROVIDERS, type Provider, type Settings } from "../lib/types";
 import { checkForUpdate, currentVersion, installUpdate, type UpdateState } from "../lib/updater";
-import { IconAI, IconApps, IconCheck, IconDictionary, IconGeneral, IconStyle, IconUpdates, IconX } from "./Icons";
+import { IconAI, IconApps, IconCheck, IconDictionary, IconGeneral, IconSnippets, IconStyle, IconUpdates, IconX } from "./Icons";
 
 /** Browser preview only (?previewApp): show the Mac-app-only rows so they can be reviewed. */
 const showAppRows = inApp || (typeof location !== "undefined" && new URLSearchParams(location.search).has("previewApp"));
 
-export type SettingsSection = "general" | "ai" | "apps" | "dictionary" | "style" | "updates";
+export type SettingsSection = "general" | "ai" | "apps" | "dictionary" | "style" | "snippets" | "updates";
 
 const SECTIONS: { id: SettingsSection; label: string; hint: string; Icon: (p: { size?: number }) => React.ReactElement; tint: string }[] = [
   { id: "general", label: "General", hint: "How and when Matra checks your writing.", Icon: IconGeneral, tint: "slate" },
@@ -24,6 +24,7 @@ const SECTIONS: { id: SettingsSection; label: string; hint: string; Icon: (p: { 
   { id: "apps", label: "Other apps", hint: "Matra in Mail, Slack, Chrome and every other app.", Icon: IconApps, tint: "indigo" },
   { id: "dictionary", label: "Dictionary", hint: "Words Matra should accept, and suggestions you turned off.", Icon: IconDictionary, tint: "teal" },
   { id: "style", label: "Style guide", hint: "Your own rules, checked in every app.", Icon: IconStyle, tint: "amber" },
+  { id: "snippets", label: "Snippets", hint: "Text you type often, inserted with a short trigger.", Icon: IconSnippets, tint: "violet" },
   { id: "updates", label: "Updates", hint: "Your version, new releases and diagnostics.", Icon: IconUpdates, tint: "blue" },
 ];
 
@@ -81,6 +82,7 @@ export function SettingsView(p: Props) {
         {p.section === "apps" && <OtherApps {...p} />}
         {p.section === "dictionary" && <Dictionary {...p} />}
         {p.section === "style" && <StyleGuide {...p} />}
+        {p.section === "snippets" && <Snippets {...p} />}
         {p.section === "updates" && <Updates {...p} />}
       </section>
     </div>
@@ -455,6 +457,60 @@ function StyleGuide({ settings, onSettings }: Props) {
         </div>
       </div>
     </div>
+  );
+}
+
+function Snippets({ settings, onSettings }: Props) {
+  const [trigger, setTrigger] = useState(";");
+  const [text, setText] = useState("");
+  const taken = settings.snippets.some((s) => s.trigger === trigger.trim());
+  const valid = trigger.trim().length >= 2 && !/\s/.test(trigger.trim()) && text.trim() && !taken;
+  return (
+    <>
+      <div className="sgroup">
+        <div className="sblock">
+          <h2>New snippet</h2>
+          <p className="srow-detail">Type the trigger and a space in Matra's editor or the floating panel, and Matra puts the text in.</p>
+          <form
+            className="snippet-form"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!valid) return;
+              onSettings({ ...settings, snippets: [...settings.snippets, { trigger: trigger.trim(), text }] });
+              setTrigger(";");
+              setText("");
+            }}
+          >
+            <input value={trigger} onChange={(e) => setTrigger(e.target.value)} aria-label="Trigger" placeholder=";sig" className="snippet-trigger" />
+            <textarea value={text} onChange={(e) => setText(e.target.value)} aria-label="Snippet text" placeholder={"Best regards,\nYour name"} rows={3} className="rules" />
+            <div className="sblock-actions">
+              {taken && <span className="srow-detail">That trigger is already used.</span>}
+              <button className="btn btn-primary btn-sm" disabled={!valid}>Add snippet</button>
+            </div>
+          </form>
+        </div>
+      </div>
+      {settings.snippets.length > 0 ? (
+        <div className="sgroup">
+          {settings.snippets.map((s) => (
+            <div className="srow" key={s.trigger}>
+              <div className="srow-text">
+                <span className="srow-label"><kbd className="kbd">{s.trigger}</kbd></span>
+                <span className="srow-detail snippet-preview">{s.text}</span>
+              </div>
+              <button
+                className="btn btn-quiet btn-sm"
+                onClick={() => onSettings({ ...settings, snippets: settings.snippets.filter((x) => x.trigger !== s.trigger) })}
+              >
+                Delete
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="snote">No snippets yet. A common first one: “;sig” for your email signature.</p>
+      )}
+    </>
   );
 }
 

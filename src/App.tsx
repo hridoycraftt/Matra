@@ -225,6 +225,7 @@ export default function App() {
               onChange={a.onTextChange}
               onCaret={a.onCaret}
             onSelectionAction={a.rewrite}
+            snippets={settings.snippets}
               placeholder="Start writing in English or Bangla…"
             />
           </article>

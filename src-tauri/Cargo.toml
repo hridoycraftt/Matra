@@ -1,6 +1,6 @@
 [package]
 name = "matra"
-version = "0.3.7"
+version = "0.3.8"
 description = "Matra — AI writing partner for English and Bangla"
 edition = "2021"
 publish = false

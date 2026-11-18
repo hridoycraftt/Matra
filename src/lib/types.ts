@@ -106,6 +106,8 @@ export interface Settings {
   mutedKinds: string[];
   /** Exact changes the writer marked as incorrect (see rejectKey). */
   rejected: string[];
+  /** Saved text: type the trigger (e.g. ";sig") and a space to insert it. */
+  snippets: { trigger: string; text: string }[];
 }
 
 /** Identifies one exact change, for "Incorrect suggestion". */
@@ -152,6 +154,7 @@ export const DEFAULT_SETTINGS: Settings = {
   badgeOffsets: {},
   mutedKinds: [],
   rejected: [],
+  snippets: [],
 };
 
 export function activeModel(s: Settings): string {

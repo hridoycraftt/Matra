@@ -28,6 +28,7 @@ import {
   UserGroupIcon,
   Mortarboard01Icon,
   AiSearchIcon,
+  Note01Icon,
 } from "@hugeicons/core-free-icons";
 
 type P = { size?: number };
@@ -62,6 +63,7 @@ export const IconStyle = make(PaintBrush01Icon);
 export const IconUpdates = make(Download04Icon);
 export const IconKey = make(Key01Icon);
 export const IconActivity = make(Activity01Icon);
+export const IconSnippets = make(Note01Icon);
 
 // Agents
 export const IconReaders = make(UserGroupIcon);

@@ -264,6 +264,7 @@ export default function Panel() {
             onChange={a.onTextChange}
             onCaret={a.onCaret}
             onSelectionAction={a.rewrite}
+            snippets={settings.snippets}
             compact
           />
         ) : (

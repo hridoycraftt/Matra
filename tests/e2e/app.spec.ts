@@ -283,3 +283,18 @@ test("Agents tab: reader reactions for a chosen reader", async ({ page }) => {
   await expect(page.getByText("When will you be back?")).toBeVisible();
   expect(JSON.stringify(log.requests[0])).toContain("Reader: My manager");
 });
+
+test("snippets: add one in Settings, then type its trigger to insert it", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: /New document/ }).click();
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await page.getByRole("navigation", { name: "Settings sections" }).getByRole("button", { name: /Snippets/ }).click();
+  await page.getByLabel("Trigger").fill(";sig");
+  await page.getByLabel("Snippet text").fill("Best regards,\nHridoy");
+  await page.getByRole("button", { name: "Add snippet" }).click();
+  await page.getByRole("button", { name: "Done" }).click();
+  const editor = page.getByLabel("Document text");
+  await editor.click();
+  await page.keyboard.type("Thanks ;sig ");
+  await expect(editor).toHaveValue("Thanks Best regards,\nHridoy");
+});
