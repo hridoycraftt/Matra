@@ -110,3 +110,76 @@ jobs:
           prerelease: false
           includeUpdaterJson: true
           args: --target universal-apple-darwin
+
+  release-fallback:
+    # GitHub sometimes can't find a free macOS machine of one kind for 15 minutes and
+    # cancels the job; then try once more on the other kind.
+    needs: [version, release]
+    if: always() && needs.version.outputs.exists == 'false' && needs.release.result != 'success' && needs.release.result != 'skipped'
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+      - run: npm ci
+      - run: npm test
+      - id: notes
+        run: |
+          {
+            echo "body<<MATRA_NOTES_EOF"
+            cat RELEASE_NOTES.md
+            echo "MATRA_NOTES_EOF"
+          } >> "$GITHUB_OUTPUT"
+      # Sign with Matra's own certificate when it is configured. A stable signature lets
+      # macOS keep Accessibility permission across updates (ad-hoc signatures change every build).
+      - name: Use the signing certificate if configured
+        env:
+          CERT: ${{ secrets.APPLE_CERTIFICATE }}
+          CERT_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        run: |
+          if [ -z "$CERT" ] || [ -z "$IDENTITY" ]; then
+            echo "No signing certificate configured; using an ad-hoc signature."
+            exit 0
+          fi
+          KEYCHAIN="$RUNNER_TEMP/matra-signing.keychain-db"
+          security create-keychain -p "" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "" "$KEYCHAIN"
+          echo "$CERT" | base64 --decode > "$RUNNER_TEMP/matra.p12"
+          security import "$RUNNER_TEMP/matra.p12" -k "$KEYCHAIN" -P "$CERT_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "" "$KEYCHAIN" > /dev/null
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+          # A self-made certificate is only a valid code-signing identity once it is trusted.
+          security find-certificate -c "$IDENTITY" -p "$KEYCHAIN" > "$RUNNER_TEMP/matra.pem"
+          sudo security add-trusted-cert -d -r trustRoot -p codeSign -k /Library/Keychains/System.keychain "$RUNNER_TEMP/matra.pem"
+          rm -f "$RUNNER_TEMP/matra.p12"
+          if security find-identity -v -p codesigning | grep -q "$IDENTITY"; then
+            echo "APPLE_SIGNING_IDENTITY=$IDENTITY" >> "$GITHUB_ENV"
+            echo "Signing with Matra's certificate."
+          else
+            security find-identity -v -p codesigning || true
+            echo "::warning::Signing certificate not usable; this build uses an ad-hoc signature."
+          fi
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: v__VERSION__
+          releaseName: "Matra v__VERSION__"
+          releaseBody: ${{ steps.notes.outputs.body }}
+          releaseCommitish: ${{ github.sha }}
+          releaseDraft: false
+          prerelease: false
+          includeUpdaterJson: true
+          args: --target universal-apple-darwin
