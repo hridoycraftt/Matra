@@ -1215,3 +1215,4 @@ html.ul-patterns .overlay-delivery { border-bottom: 3px double var(--c-delivery)
 .badge-fixes { background: #e5484d; color: #fff; }
 .badge-fixes:hover { background: #d13a3f; }
 .badge-wrap.is-dragging { cursor: grabbing; }
+.tile-orange { background: linear-gradient(180deg, #f39a5a, #e0702a); }

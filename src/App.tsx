@@ -272,6 +272,8 @@ export default function App() {
         onMute={a.mute}
         onReport={a.report}
         onAcceptAll={a.acceptAll}
+        sentenceCount={a.sentenceCount}
+        onFixSentence={a.fixSentence}
         hasKey={!!apiKey}
         providerLabel={PROVIDERS.find((x) => x.id === settings.provider)!.label}
         onOpenSettings={() => openSettings("ai")}

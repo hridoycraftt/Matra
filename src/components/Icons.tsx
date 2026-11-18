@@ -32,6 +32,7 @@ import {
   DocumentValidationIcon,
   QuoteDownIcon,
   Idea01Icon,
+  UserEdit01Icon,
 } from "@hugeicons/core-free-icons";
 
 type P = { size?: number };
@@ -75,6 +76,7 @@ export const IconDetector = make(AiSearchIcon);
 export const IconPlagiarism = make(DocumentValidationIcon);
 export const IconCitation = make(QuoteDownIcon);
 export const IconIdea = make(Idea01Icon);
+export const IconVoice = make(UserEdit01Icon);
 
 export const IconChevron = ({ size = 16, dir = "down" }: P & { dir?: "down" | "left" | "right" | "up" }) => (
   <span className="icon-rot" style={{ transform: `rotate(${{ down: 0, left: 90, up: 180, right: -90 }[dir]}deg)` }}>

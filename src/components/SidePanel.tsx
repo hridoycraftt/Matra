@@ -38,6 +38,8 @@ interface Props {
   onMute(id: string): void;
   onReport(id: string): void;
   onAcceptAll(category: Category | "all"): void;
+  sentenceCount?(id: string): number;
+  onFixSentence?(id: string): void;
   hasKey: boolean;
   providerLabel: string;
   onOpenSettings(): void;
@@ -228,6 +230,17 @@ function Review(p: Props) {
               >
                 Dismiss
               </button>
+              {p.sentenceCount && p.onFixSentence && p.sentenceCount(i.id) > 1 && (
+                <button
+                  className="btn btn-quiet btn-sm"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    p.onFixSentence!(i.id);
+                  }}
+                >
+                  Fix all {p.sentenceCount(i.id)} in sentence
+                </button>
+              )}
               <IssueMenu issue={i} onAddWord={p.onAddWord} onMute={p.onMute} onReport={p.onReport} />
             </div>
           </li>

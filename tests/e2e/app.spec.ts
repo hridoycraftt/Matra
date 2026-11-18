@@ -398,3 +398,34 @@ test("the corrections card shows only correctness fixes; improvements are a clic
   await expect(page.locator(".sugg-count")).toContainText("correction");
   await expect(page.locator(".sugg-title")).not.toContainText("Wordy");
 });
+
+test("fix all corrections in a sentence with one click", async ({ page }) => {
+  await withKey(page);
+  await mockClaude(page);
+  await page.goto("/");
+  await page.getByRole("button", { name: /^Check/ }).click();
+  // "Their" and "work" are both in the second sentence of the welcome text.
+  const card = page.locator(".card", { hasText: "Agreement" });
+  await card.getByRole("button", { name: /Fix all \d in sentence/ }).click();
+  await expect(page.getByLabel("Document text")).toHaveValue(/There are a few mistakes in this paragraph so you can see how it works\./);
+});
+
+test("your voice: learn from samples, then rewrites use it", async ({ page }) => {
+  await withKey(page);
+  const log = await mockClaude(page, {
+    check: { profile: "Write in short, warm sentences. Open with the point.", traits: ["warm", "short sentences"] },
+    written: "Short and warm.",
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await page.getByRole("navigation", { name: "Settings sections" }).getByRole("button", { name: /Your voice/ }).click();
+  await page.getByLabel("Your writing samples").fill(Array(90).fill("hello").join(" "));
+  await page.getByRole("button", { name: "Learn my voice" }).click();
+  await expect(page.getByText("Write in short, warm sentences. Open with the point.")).toBeVisible();
+  await expect(page.getByRole("switch", { name: "Write in my voice" })).toHaveAttribute("aria-checked", "true");
+  await page.getByRole("button", { name: "Done" }).click();
+  await page.getByRole("tab", { name: "Write", exact: true }).click();
+  await page.getByRole("button", { name: "Make shorter" }).click();
+  await expect(page.locator(".writer-output")).toHaveText("Short and warm.");
+  expect(JSON.stringify(log.requests.at(-1))).toContain("Write in the user's own voice");
+});

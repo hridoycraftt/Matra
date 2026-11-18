@@ -100,3 +100,20 @@ export function remapIssues(prevText: string, nextText: string, issues: Issue[])
   }
   return out.filter((i) => nextText.slice(i.start, i.end) === i.original);
 }
+
+/** The sentence around a range: from after the previous sentence end to the next one. */
+export function sentenceBounds(text: string, start: number, end: number): [number, number] {
+  let s = start;
+  while (s > 0 && !/[.!?।\n]/.test(text[s - 1])) s--;
+  let e = end;
+  while (e < text.length && !/[.!?।\n]/.test(text[e])) e++;
+  return [s, Math.min(text.length, e + 1)];
+}
+
+/** Correctness issues in the same sentence as the given one (including it). */
+export function sentenceFixes(text: string, issues: Issue[], id: string): Issue[] {
+  const target = issues.find((i) => i.id === id);
+  if (!target || target.category !== "correctness") return [];
+  const [s, e] = sentenceBounds(text, target.start, target.end);
+  return issues.filter((i) => i.category === "correctness" && i.start >= s && i.end <= e);
+}

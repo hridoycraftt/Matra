@@ -80,3 +80,13 @@ describe("applyIssue with an alternative", () => {
     expect(applyIssue(text, issues, issues[0].id, "enormous").text).toBe("It was a enormous house.");
   });
 });
+
+describe("sentenceFixes", () => {
+  it("collects the correctness issues in the same sentence only", async () => {
+    const { sentenceFixes } = await import("../../src/lib/locate");
+    const text = "Me and him goes to market. Their is rain.";
+    const issues = locateIssues(text, [raw("Me and him", "He and I"), raw("goes", "go"), raw("Their", "There")]);
+    const fixes = sentenceFixes(text, issues, issues[1].id);
+    expect(fixes.map((f) => f.original)).toEqual(["Me and him", "goes"]);
+  });
+});

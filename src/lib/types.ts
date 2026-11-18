@@ -112,6 +112,8 @@ export interface Settings {
   underlineStyle: "color" | "patterns";
   /** The first-run guide has been finished or skipped. */
   onboarded: boolean;
+  /** The writer's voice, learned from their own samples, used for rewrites and new writing. */
+  voice: { samples: string; profile: string; traits: string[]; enabled: boolean };
 }
 
 /** Identifies one exact change, for "Incorrect suggestion". */
@@ -161,6 +163,7 @@ export const DEFAULT_SETTINGS: Settings = {
   snippets: [],
   underlineStyle: "color",
   onboarded: false,
+  voice: { samples: "", profile: "", traits: [], enabled: false },
 };
 
 export function activeModel(s: Settings): string {

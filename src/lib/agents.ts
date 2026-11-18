@@ -155,3 +155,19 @@ export function knownHosts(sources: { title: string; url: string }[]): Set<strin
   }
   return out;
 }
+
+export interface VoiceProfile {
+  profile: string;
+  traits: string[];
+}
+
+/** Learn how this person writes from their own samples. */
+export function learnVoice(apiKey: string | null, samples: string, settings: Settings, signal?: AbortSignal) {
+  return runJson<VoiceProfile>(apiKey, settings, {
+    system:
+      "You describe a person's writing voice precisely enough that another writer could imitate it: formality, warmth, sentence length and rhythm, vocabulary, punctuation habits, how they open and close, and their language mix (English, Bangla, Banglish). Describe; do not judge.",
+    user: `Give: "profile" (3-5 sentences written as instructions, e.g. "Write in short, direct sentences…"), "traits" (4-6 short labels such as "warm", "short sentences", "uses em dashes").\n\n<samples>\n${samples}\n</samples>`,
+    schema: S({ profile: str, traits: strs }),
+    signal,
+  });
+}

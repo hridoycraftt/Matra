@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type RefObject } from "react"
 import type { EditorHandle } from "../components/Editor";
 import type { CheckView, WriterView } from "../components/SidePanel";
 import { checkText, friendlyError, MAX_CHECK_CHARS, streamCompose, streamRewrite } from "./ai";
-import { applyIssue, locateIssues, remapIssues } from "./locate";
+import { applyIssue, locateIssues, remapIssues, sentenceFixes } from "./locate";
 import { checkPunctuation } from "./punctuation";
 import { rejectKey, type Category, type Goals, type Issue, type RewriteMode, type Settings } from "./types";
 
@@ -160,6 +160,20 @@ export function useAssistant({ text, setText, goals, settings, apiKey, editor, o
     }
     commit(next, list);
   };
+  /** How many correctness fixes share this issue's sentence. */
+  const sentenceCount = (id: string) => sentenceFixes(textRef.current, issues, id).length;
+  /** Apply every correctness fix in this issue's sentence at once. */
+  const fixSentence = (id: string) => {
+    let next = textRef.current;
+    let list = issues;
+    for (const i of sentenceFixes(next, issues, id).sort((a, b) => b.start - a.start)) {
+      const r = applyIssue(next, list, i.id);
+      next = r.text;
+      list = r.issues;
+    }
+    commit(next, list);
+    setActiveIssue(null);
+  };
   const activate = (id: string) => {
     setActiveIssue(id);
     const i = issues.find((x) => x.id === id);
@@ -262,6 +276,8 @@ export function useAssistant({ text, setText, goals, settings, apiKey, editor, o
     mute,
     report,
     acceptAll,
+    sentenceCount,
+    fixSentence,
     activate,
     onCaret,
     rewrite,

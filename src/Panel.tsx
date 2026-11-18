@@ -252,6 +252,11 @@ export default function Panel() {
         onAddWord={a.addWord}
         onMute={a.mute}
         onReport={a.report}
+        sentenceCount={a.sentenceCount}
+        onFixSentence={(id) => {
+          a.fixSentence(id);
+          focusSource();
+        }}
         onExpand={() => {
           if (!a.issues.length) a.setTab("write");
           open("full", true);
@@ -320,6 +325,8 @@ export default function Panel() {
         onMute={a.mute}
         onReport={a.report}
         onAcceptAll={a.acceptAll}
+        sentenceCount={a.sentenceCount}
+        onFixSentence={a.fixSentence}
         hasKey={!!apiKey}
         providerLabel={providerLabel}
         onOpenSettings={() => openMain(true)}
@@ -359,6 +366,8 @@ function SuggestionCard(p: {
   onAddWord(id: string): void;
   onMute(id: string): void;
   onReport(id: string): void;
+  sentenceCount(id: string): number;
+  onFixSentence(id: string): void;
   onExpand(): void;
   onClose(): void;
   onResize(height: number): void;
@@ -444,6 +453,11 @@ function SuggestionCard(p: {
           <div className="sugg-actions">
             <button className="btn btn-primary btn-sm" onClick={() => p.onAccept(issue.id)}>Accept</button>
             <button className="btn btn-quiet btn-sm" onClick={() => p.onDismiss(issue.id)}>Dismiss</button>
+            {p.sentenceCount(issue.id) > 1 && (
+              <button className="btn btn-quiet btn-sm" onClick={() => p.onFixSentence(issue.id)}>
+                Fix all {p.sentenceCount(issue.id)}
+              </button>
+            )}
             <IssueMenu issue={issue} onAddWord={p.onAddWord} onMute={p.onMute} onReport={p.onReport} />
           </div>
         </div>

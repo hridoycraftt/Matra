@@ -186,6 +186,14 @@ const REWRITE_INSTRUCTIONS: Record<Exclude<RewriteMode, "custom">, string> = {
 
 const WRITER_SYSTEM = `You are Matra, a writing partner for English and Bangla. Output only the requested text itself: no preamble, no quotes around it, no notes or explanations after it. Keep the original's line breaks and paragraphing unless asked otherwise. Never use Markdown formatting unless the input uses it.`;
 
+/** The writer prompt, in the user's own voice when they turned that on. */
+function writerSystem(settings: Settings): string {
+  const v = settings.voice;
+  return v?.enabled && v.profile.trim()
+    ? `${WRITER_SYSTEM}\n\nWrite in the user's own voice, as learned from their writing:\n${v.profile.trim()}`
+    : WRITER_SYSTEM;
+}
+
 /** Streams rewritten text. Calls onText with the full text so far. */
 export async function streamRewrite(
   apiKey: string | null,
@@ -196,7 +204,7 @@ export async function streamRewrite(
   const instruction = opts.mode === "custom" ? (opts.custom ?? "").trim() : REWRITE_INSTRUCTIONS[opts.mode];
   const goals = `The writer's goals: ${GOAL_TEXT.formality[opts.goals.formality]} formality, ${GOAL_TEXT.domain[opts.goals.domain]}, for ${GOAL_TEXT.audience[opts.goals.audience]}.`;
   return backend(apiKey, opts.settings).stream(
-    { system: WRITER_SYSTEM, user: `${instruction}\n${goals}\n\n<text>\n${opts.text}\n</text>`, signal },
+    { system: writerSystem(opts.settings), user: `${instruction}\n${goals}\n\n<text>\n${opts.text}\n</text>`, signal },
     onText,
   );
 }
@@ -212,5 +220,5 @@ export async function streamCompose(
     ? `\n\nThe document the user is working on (for context; do not repeat it):\n<document>\n${opts.context.slice(0, MAX_CHECK_CHARS)}\n</document>`
     : "";
   const goals = `Write for ${GOAL_TEXT.audience[opts.goals.audience]}, ${GOAL_TEXT.formality[opts.goals.formality]} formality, as ${GOAL_TEXT.domain[opts.goals.domain]}. Answer in the language the request is written in unless it asks for another.`;
-  return backend(apiKey, opts.settings).stream({ system: WRITER_SYSTEM, user: `${opts.prompt.trim()}\n\n${goals}${ctx}`, signal }, onText);
+  return backend(apiKey, opts.settings).stream({ system: writerSystem(opts.settings), user: `${opts.prompt.trim()}\n\n${goals}${ctx}`, signal }, onText);
 }

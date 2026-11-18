@@ -11,17 +11,20 @@ import { inApp, useApiKey } from "../lib/platform";
 import { listGoogleModels } from "../lib/providers/google";
 import { ANTHROPIC_MODELS, DEFAULT_GOOGLE_MODEL, PROVIDERS, type Provider, type Settings } from "../lib/types";
 import { checkForUpdate, currentVersion, installUpdate, type UpdateState } from "../lib/updater";
-import { IconAI, IconApps, IconCheck, IconDictionary, IconGeneral, IconSnippets, IconStyle, IconUpdates, IconX } from "./Icons";
+import { IconAI, IconApps, IconCheck, IconDictionary, IconGeneral, IconSnippets, IconStyle, IconUpdates, IconVoice, IconX } from "./Icons";
+import { learnVoice } from "../lib/agents";
+import { friendlyError } from "../lib/ai";
 
 /** Browser preview only (?previewApp): show the Mac-app-only rows so they can be reviewed. */
 const showAppRows = inApp || (typeof location !== "undefined" && new URLSearchParams(location.search).has("previewApp"));
 
-export type SettingsSection = "general" | "ai" | "apps" | "dictionary" | "style" | "snippets" | "updates";
+export type SettingsSection = "general" | "ai" | "apps" | "voice" | "dictionary" | "style" | "snippets" | "updates";
 
 const SECTIONS: { id: SettingsSection; label: string; hint: string; Icon: (p: { size?: number }) => React.ReactElement; tint: string }[] = [
   { id: "general", label: "General", hint: "How and when Matra checks your writing.", Icon: IconGeneral, tint: "slate" },
   { id: "ai", label: "AI provider", hint: "Choose Gemini or Claude, add your key, pick a model.", Icon: IconAI, tint: "pink" },
   { id: "apps", label: "Other apps", hint: "Matra in Mail, Slack, Chrome and every other app.", Icon: IconApps, tint: "indigo" },
+  { id: "voice", label: "Your voice", hint: "Matra learns how you write and rewrites in your style.", Icon: IconVoice, tint: "orange" },
   { id: "dictionary", label: "Dictionary", hint: "Words Matra should accept, and suggestions you turned off.", Icon: IconDictionary, tint: "teal" },
   { id: "style", label: "Style guide", hint: "Your own rules, checked in every app.", Icon: IconStyle, tint: "amber" },
   { id: "snippets", label: "Snippets", hint: "Text you type often, inserted with a short trigger.", Icon: IconSnippets, tint: "violet" },
@@ -80,6 +83,7 @@ export function SettingsView(p: SettingsProps) {
         {p.section === "general" && <General {...p} />}
         {p.section === "ai" && <AIProvider {...p} />}
         {p.section === "apps" && <OtherApps {...p} />}
+        {p.section === "voice" && <Voice {...p} />}
         {p.section === "dictionary" && <Dictionary {...p} />}
         {p.section === "style" && <StyleGuide {...p} />}
         {p.section === "snippets" && <Snippets {...p} />}
@@ -383,6 +387,74 @@ function Chips({ items, onRemove, label }: { items: string[]; onRemove(x: string
         </li>
       ))}
     </ul>
+  );
+}
+
+function Voice({ settings, onSettings }: SettingsProps) {
+  const [apiKey] = useApiKey(settings.provider);
+  const [samples, setSamples] = useState(settings.voice.samples);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const enough = samples.trim().split(/\s+/).length >= 80;
+  const v = settings.voice;
+  return (
+    <>
+      <div className="sgroup">
+        <div className="sblock">
+          <h2>Teach Matra your voice</h2>
+          <p className="srow-detail">
+            Paste two or three things you wrote yourself — emails, posts, messages — about 80 words or more. Matra describes
+            your style and uses it when it rewrites or writes for you.
+          </p>
+          <textarea
+            className="rules"
+            rows={8}
+            value={samples}
+            onChange={(e) => setSamples(e.target.value)}
+            placeholder="Paste your own writing here…"
+            aria-label="Your writing samples"
+          />
+          {error && <div className="notice notice-error" role="alert">{error}</div>}
+          <div className="sblock-actions">
+            {!enough && <span className="srow-detail">{Math.max(0, 80 - samples.trim().split(/\s+/).filter(Boolean).length)} more words needed</span>}
+            <button
+              className="btn btn-primary btn-sm"
+              disabled={!enough || busy || !apiKey}
+              onClick={async () => {
+                setBusy(true);
+                setError(null);
+                try {
+                  const r = await learnVoice(apiKey, samples, settings);
+                  onSettings({ ...settings, voice: { samples, profile: r.profile, traits: r.traits.slice(0, 6), enabled: true } });
+                } catch (e) {
+                  setError(friendlyError(e).message);
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            >
+              {busy ? "Learning…" : v.profile ? "Learn again" : "Learn my voice"}
+            </button>
+          </div>
+        </div>
+      </div>
+      {v.profile && (
+        <div className="sgroup">
+          <Row label="Write in my voice" detail="Rewrites, translations and Write with AI follow your style.">
+            <Switch label="Write in my voice" checked={v.enabled} onChange={(on) => onSettings({ ...settings, voice: { ...v, enabled: on } })} />
+          </Row>
+          <div className="sblock">
+            <h2>How you write</h2>
+            <div className="tones">
+              {v.traits.map((t) => (
+                <span key={t} className="tone">{t}</span>
+              ))}
+            </div>
+            <p className="notes">{v.profile}</p>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
