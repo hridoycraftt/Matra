@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { onAppEvent } from "./lib/platform";
+import { onAppEvent, useSettings } from "./lib/platform";
+import { useUnderlineStyle } from "./lib/useUnderlineStyle";
 
 interface Mark {
   id: string;
@@ -17,6 +18,8 @@ const PREVIEW: Mark[] = [
 
 /** A click-through layer over another app's text box that draws Matra's underlines in place. */
 export default function Underlines() {
+  const [settings] = useSettings();
+  useUnderlineStyle(settings);
   const [marks, setMarks] = useState<Mark[]>(new URLSearchParams(location.search).has("preview") ? PREVIEW : []);
 
   useEffect(() => {

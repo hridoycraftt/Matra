@@ -94,8 +94,10 @@ export async function mockClaude(
 export async function withKey(page: Page) {
   await page.addInitScript(() => {
     localStorage.setItem("matra.devApiKey.anthropic", "sk-ant-test");
-    if (!localStorage.getItem("matra.settings.v1"))
-      localStorage.setItem("matra.settings.v1", JSON.stringify({ provider: "anthropic" }));
+    if (sessionStorage.getItem("matra.test.seeded")) return; // keep what the test changes across reloads
+    sessionStorage.setItem("matra.test.seeded", "1");
+    const saved = JSON.parse(localStorage.getItem("matra.settings.v1") ?? "{}");
+    localStorage.setItem("matra.settings.v1", JSON.stringify({ ...saved, provider: "anthropic", onboarded: true }));
   });
 }
 
@@ -103,7 +105,7 @@ export async function withKey(page: Page) {
 export async function mockGemini(page: Page, opts: { check?: object; written?: string } = {}) {
   await page.addInitScript(() => {
     localStorage.setItem("matra.devApiKey.google", "AIza-test");
-    localStorage.setItem("matra.settings.v1", JSON.stringify({ provider: "google" }));
+    localStorage.setItem("matra.settings.v1", JSON.stringify({ provider: "google", onboarded: true }));
   });
   const urls: string[] = [];
   await page.route("https://generativelanguage.googleapis.com/**", async (route) => {

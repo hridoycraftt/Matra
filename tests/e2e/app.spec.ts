@@ -298,3 +298,10 @@ test("snippets: add one in Settings, then type its trigger to insert it", async 
   await page.keyboard.type("Thanks ;sig ");
   await expect(editor).toHaveValue("Thanks Best regards,\nHridoy");
 });
+
+test("underline patterns can be switched on for color-blind users", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await page.getByRole("combobox").filter({ hasText: "Color only" }).selectOption("patterns");
+  await expect(page.locator("html")).toHaveClass(/ul-patterns/);
+});

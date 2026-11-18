@@ -28,7 +28,7 @@ const SECTIONS: { id: SettingsSection; label: string; hint: string; Icon: (p: { 
   { id: "updates", label: "Updates", hint: "Your version, new releases and diagnostics.", Icon: IconUpdates, tint: "blue" },
 ];
 
-interface Props {
+export interface SettingsProps {
   section: SettingsSection;
   onSection(s: SettingsSection): void;
   onClose(): void;
@@ -41,7 +41,7 @@ interface Props {
 }
 
 /** Settings as its own page with a section list, like macOS System Settings. */
-export function SettingsView(p: Props) {
+export function SettingsView(p: SettingsProps) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && p.onClose();
     window.addEventListener("keydown", onKey);
@@ -116,7 +116,7 @@ function Switch({ checked, onChange, label, disabled }: { checked: boolean; onCh
   );
 }
 
-function General({ settings, onSettings }: Props) {
+function General({ settings, onSettings }: SettingsProps) {
   const set = <K extends keyof Settings>(k: K, v: Settings[K]) => onSettings({ ...settings, [k]: v });
   const [atLogin, setAtLogin] = useState<boolean | null>(null);
   useEffect(() => {
@@ -131,6 +131,12 @@ function General({ settings, onSettings }: Props) {
         <select value={settings.englishDialect} onChange={(e) => set("englishDialect", e.target.value as Settings["englishDialect"])}>
           <option value="US">American (color)</option>
           <option value="UK">British (colour)</option>
+        </select>
+      </Row>
+      <Row label="Underline style" detail="Patterns tell categories apart without relying on color.">
+        <select value={settings.underlineStyle} onChange={(e) => set("underlineStyle", e.target.value as Settings["underlineStyle"])}>
+          <option value="color">Color only</option>
+          <option value="patterns">Color and pattern</option>
         </select>
       </Row>
       <Row label="Explain suggestions in">
@@ -159,7 +165,7 @@ function General({ settings, onSettings }: Props) {
   );
 }
 
-function AIProvider(p: Props) {
+export function AIProvider(p: SettingsProps) {
   const provider = PROVIDERS.find((x) => x.id === p.settings.provider)!;
   const [apiKey] = useApiKey(provider.id);
   const [draft, setDraft] = useState("");
@@ -273,7 +279,7 @@ export function usePermission() {
   return trusted;
 }
 
-function OtherApps({ settings, onSettings }: Props) {
+export function OtherApps({ settings, onSettings }: SettingsProps) {
   const trusted = usePermission();
   const [ignored, setIgnored] = useState(settings.ignoredApps.join(", "));
   const [repairing, setRepairing] = useState(false);
@@ -380,7 +386,7 @@ function Chips({ items, onRemove, label }: { items: string[]; onRemove(x: string
   );
 }
 
-function Dictionary({ settings, onSettings }: Props) {
+function Dictionary({ settings, onSettings }: SettingsProps) {
   const [word, setWord] = useState("");
   const add = () => {
     const w = word.trim();
@@ -434,7 +440,7 @@ function Dictionary({ settings, onSettings }: Props) {
   );
 }
 
-function StyleGuide({ settings, onSettings }: Props) {
+function StyleGuide({ settings, onSettings }: SettingsProps) {
   const [rules, setRules] = useState(settings.styleRules);
   const dirty = rules !== settings.styleRules;
   return (
@@ -460,7 +466,7 @@ function StyleGuide({ settings, onSettings }: Props) {
   );
 }
 
-function Snippets({ settings, onSettings }: Props) {
+function Snippets({ settings, onSettings }: SettingsProps) {
   const [trigger, setTrigger] = useState(";");
   const [text, setText] = useState("");
   const taken = settings.snippets.some((s) => s.trigger === trigger.trim());
@@ -514,7 +520,7 @@ function Snippets({ settings, onSettings }: Props) {
   );
 }
 
-function Updates({ update, onUpdate }: Props) {
+function Updates({ update, onUpdate }: SettingsProps) {
   const [version, setVersion] = useState("…");
   const [field, setField] = useState<FieldInfo | null>(null);
   const trusted = usePermission();

@@ -1127,3 +1127,49 @@ html.in-app.is-card .sugg { width: auto; }
 }
 .snippet-preview { white-space: pre-wrap; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .sblock-actions { gap: 10px; align-items: center; }
+
+/* Underline patterns: each category is distinguishable without color */
+html.ul-patterns .hl-correctness { text-decoration-style: solid; }
+html.ul-patterns .hl-clarity { text-decoration-style: dashed; }
+html.ul-patterns .hl-engagement { text-decoration-style: dotted; text-decoration-thickness: 3px; }
+html.ul-patterns .hl-delivery { text-decoration-style: double; }
+html.ul-patterns .overlay-line { height: 0; background: none; border-bottom: 2px solid; }
+html.ul-patterns .overlay-correctness { border-color: var(--c-correctness); }
+html.ul-patterns .overlay-clarity { border-bottom-style: dashed; border-color: var(--c-clarity); }
+html.ul-patterns .overlay-engagement { border-bottom: 3px dotted var(--c-engagement); }
+html.ul-patterns .overlay-delivery { border-bottom: 3px double var(--c-delivery); }
+
+/* ============ First-run guide ============ */
+.onboard {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: color-mix(in srgb, var(--bg) 70%, transparent);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  animation: fade-in 200ms ease both;
+}
+.onboard-card {
+  width: min(640px, 100%);
+  max-height: 100%;
+  overflow: auto;
+  padding: 22px 26px 18px;
+  border-radius: 18px;
+  background: var(--bg);
+  box-shadow: var(--shadow-sheet);
+  animation: sheet-in 260ms var(--ease) both;
+}
+.onboard-steps { display: flex; gap: 6px; justify-content: center; margin-bottom: 14px; }
+.onboard-dot { width: 22px; height: 4px; border-radius: 99px; background: var(--line-2); transition: background-color 200ms ease; }
+.onboard-dot.is-on { background: var(--brand); }
+.onboard-hero { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 10px; padding: 18px 10px 26px; }
+.onboard-hero h1 { margin: 6px 0 0; font-size: 24px; letter-spacing: -0.02em; }
+.onboard-hero p { margin: 0; max-width: 46ch; color: var(--ink-2); font-size: 14px; line-height: 1.55; }
+.onboard-ok { display: grid; place-items: center; width: 56px; height: 56px; border-radius: 50%; background: color-mix(in srgb, var(--c-engagement) 14%, transparent); color: var(--c-engagement); }
+.onboard-head { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 14px; }
+.onboard-head h2 { margin: 0; font-size: 17px; }
+.onboard-head p { margin: 3px 0 0; font-size: 13px; color: var(--ink-3); }
+.onboard-foot { display: flex; justify-content: space-between; align-items: center; padding-top: 12px; border-top: 1px solid var(--line); }

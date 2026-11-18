@@ -108,6 +108,10 @@ export interface Settings {
   rejected: string[];
   /** Saved text: type the trigger (e.g. ";sig") and a space to insert it. */
   snippets: { trigger: string; text: string }[];
+  /** "color": colored lines; "patterns": each category also gets its own line pattern. */
+  underlineStyle: "color" | "patterns";
+  /** The first-run guide has been finished or skipped. */
+  onboarded: boolean;
 }
 
 /** Identifies one exact change, for "Incorrect suggestion". */
@@ -155,6 +159,8 @@ export const DEFAULT_SETTINGS: Settings = {
   mutedKinds: [],
   rejected: [],
   snippets: [],
+  underlineStyle: "color",
+  onboarded: false,
 };
 
 export function activeModel(s: Settings): string {

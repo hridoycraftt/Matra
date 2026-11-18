@@ -22,6 +22,7 @@ import {
 import { inApp, onAppEvent, useApiKey, useSettings } from "./lib/platform";
 import { CATEGORIES, DEFAULT_GOALS, PROVIDERS, type Goals, type Issue } from "./lib/types";
 import { useAssistant, useSelectionWords } from "./lib/useAssistant";
+import { useUnderlineStyle } from "./lib/useUnderlineStyle";
 
 const GOALS_KEY = "matra.panelGoals";
 const PREVIEW_FIELD: FieldInfo = {
@@ -51,6 +52,7 @@ function loadGoals(): Goals {
 export default function Panel() {
   const [settings, setSettings] = useSettings();
   const [apiKey] = useApiKey(settings.provider);
+  useUnderlineStyle(settings);
   const [goals, setGoals] = useState<Goals>(loadGoals);
   const [field, setField] = useState<FieldInfo | null>(inApp ? null : PREVIEW_FIELD);
   const [text, setText] = useState(inApp ? "" : PREVIEW_FIELD.text);

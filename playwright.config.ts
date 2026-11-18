@@ -8,7 +8,8 @@ export default defineConfig({
   timeout: 30_000,
   fullyParallel: true,
   reporter: process.env.CI ? "github" : "list",
-  use: { baseURL: "http://localhost:4173", trace: "off" },
+  // Tests start past the first-run guide; the onboarding test clears this.
+  use: { baseURL: "http://localhost:4173", trace: "off", storageState: "tests/e2e/state.json" },
   webServer: {
     command: "npm run build && npx vite preview --port 4173 --strictPort",
     url: "http://localhost:4173",

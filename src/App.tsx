@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Editor, type EditorHandle } from "./components/Editor";
 import { GoalsMenu } from "./components/GoalsMenu";
 import { IconCheck, IconDoc, IconGear, IconPlus, IconTrash, LogoMark } from "./components/Icons";
+import { Onboarding } from "./components/Onboarding";
 import { SettingsView, usePermission, type SettingsSection } from "./components/SettingsView";
 import { SidePanel } from "./components/SidePanel";
 import { clearApiKey, inApp, onAppEvent, saveApiKey, useApiKey, useSettings } from "./lib/platform";
@@ -9,6 +10,7 @@ import { computeStats, formatMinutes } from "./lib/stats";
 import { docTitle, loadActiveId, loadDocs, newDoc, saveActiveId, saveDocs } from "./lib/storage";
 import { PROVIDERS, type MatraDoc } from "./lib/types";
 import { useAssistant, useSelectionWords } from "./lib/useAssistant";
+import { useUnderlineStyle } from "./lib/useUnderlineStyle";
 import { checkForUpdate, type UpdateState } from "./lib/updater";
 import { configureEverywhere } from "./lib/everywhere";
 
@@ -21,6 +23,7 @@ export default function App() {
   });
   const [settings, setSettings] = useSettings();
   const [apiKey] = useApiKey(settings.provider);
+  useUnderlineStyle(settings);
   const [section, setSection] = useState<SettingsSection | null>(null);
   const openSettings = (s: SettingsSection = "general") => setSection(s);
   const trusted = usePermission();
@@ -174,6 +177,23 @@ export default function App() {
         </button>
       </nav>
 
+      {!settings.onboarded && (
+        <Onboarding
+          section="ai"
+          onSection={() => undefined}
+          onClose={() => undefined}
+          settings={settings}
+          onSettings={setSettings}
+          onSaveKey={async (provider, k) => {
+            await saveApiKey(provider, k);
+            a.invalidate();
+          }}
+          onClearKey={(provider) => clearApiKey(provider)}
+          update={update}
+          onUpdate={setUpdate}
+          onFinish={() => setSettings({ ...settings, onboarded: true })}
+        />
+      )}
       {section ? (
         <SettingsView
           section={section}
