@@ -187,6 +187,13 @@ impl Element {
         (ok && r.location >= 0).then_some(r.location as usize)
     }
 
+    /// The element's frame (x, y, width, height) on screen, if it still exists.
+    pub fn frame(&self) -> Option<(f64, f64, f64, f64)> {
+        let p = self.point("AXPosition")?;
+        let s = self.size("AXSize")?;
+        (s.width > 0.0 && s.height > 0.0).then_some((p.x, p.y, s.width, s.height))
+    }
+
     pub fn pid(&self) -> Option<i32> {
         let mut pid = 0;
         (unsafe { AXUIElementGetPid(self.0, &mut pid) } == AX_OK).then_some(pid)

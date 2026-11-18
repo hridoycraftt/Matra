@@ -348,6 +348,33 @@ pub fn start_watcher<R: Runtime>(app: AppHandle<R>) {
             });
 
             let Some(field) = field else {
+                // Focus left the text box but the same app is still in front (the user clicked
+                // elsewhere in the page): keep the quiet dot on the box, following it if it moves.
+                let same_app = matches!((&focused, state.last.lock().unwrap().as_ref()), (Some((pid, _)), Some(l)) if *pid == l.pid);
+                let kept = state.element.lock().unwrap().as_ref().and_then(|el| el.frame());
+                if let (true, Some((x, y, w, h))) = (same_app, kept) {
+                    let moved = {
+                        let mut last = state.last.lock().unwrap();
+                        match last.as_mut() {
+                            Some(l) if (l.x, l.y, l.width, l.height) != (x, y, w, h) => {
+                                l.x = x;
+                                l.y = y;
+                                l.width = w;
+                                l.height = h;
+                                Some(l.clone())
+                            }
+                            Some(l) => {
+                                place_badge(&app, l);
+                                None
+                            }
+                            None => None,
+                        }
+                    };
+                    if let Some(l) = moved {
+                        place_badge(&app, &l);
+                    }
+                    continue;
+                }
                 hide_badge(&app);
                 hide_overlay(&app);
                 let mut last = state.last.lock().unwrap();
