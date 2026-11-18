@@ -130,10 +130,10 @@ fn show_panel(
     everywhere::place_panel(&app, focus, mode, height, anchor);
 }
 
-/// Open the badge into its pill of actions (on hover) or close it back to a dot.
+/// Resize the badge: a dot, the corrections/improvements pill, or the pill of actions.
 #[tauri::command]
-fn badge_expand(app: AppHandle, expanded: bool) {
-    app.state::<State>().badge_expanded.store(expanded, Ordering::Relaxed);
+fn badge_width(app: AppHandle, width: f64) {
+    *app.state::<State>().badge_width.lock().unwrap() = width;
     if let Some(f) = app.state::<State>().last.lock().unwrap().clone() {
         everywhere::place_badge(&app, &f);
     }
@@ -310,7 +310,7 @@ pub fn run() {
             set_badge,
             set_underlines,
             badge_drag,
-            badge_expand,
+            badge_width,
             focus_source,
             hide_panel,
             open_main

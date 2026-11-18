@@ -1179,3 +1179,39 @@ html.ul-patterns .overlay-delivery { border-bottom: 3px double var(--c-delivery)
 .citation { padding: 9px 10px; border-radius: var(--radius-sm); background: var(--hover); }
 .citation p { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--ink); }
 .citation-actions { display: flex; align-items: center; justify-content: space-between; margin-top: 6px; font-size: 12px; }
+
+/* Corrections / improvements pill (like Grammarly's) */
+.badge-split {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 28px;
+  margin: 1px;
+  padding: 0 1px;
+  border-radius: 99px;
+  background: #fff;
+  box-shadow: 0 2px 10px rgba(13, 12, 34, 0.18), 0 0 0 1px rgba(13, 12, 34, 0.12);
+  animation: pill-in 180ms var(--ease) both;
+  transform-origin: right center;
+}
+.badge-wrap.is-open .badge-split { box-shadow: none; }
+.badge-seg {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-width: 26px;
+  height: 26px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 99px;
+  font: 700 12px/1 var(--font-ui);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.badge-ideas { background: transparent; color: #0e8a7e; }
+.badge-ideas:hover { background: rgba(14, 138, 126, 0.12); }
+.badge-seg-num { color: #0d0c22; }
+.badge-fixes { background: #e5484d; color: #fff; }
+.badge-fixes:hover { background: #d13a3f; }
+.badge-wrap.is-dragging { cursor: grabbing; }

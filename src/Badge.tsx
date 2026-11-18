@@ -1,19 +1,25 @@
 import { useEffect, useRef, useState } from "react";
-import { IconCheck, IconPower, IconSpark } from "./components/Icons";
-import { badgeDrag, badgeExpand, currentField, openPanel, type BadgeState } from "./lib/everywhere";
+import { IconCheck, IconIdea, IconPower, IconSpark } from "./components/Icons";
+import { badgeDrag, badgeWidth, currentField, openPanel, type BadgeState } from "./lib/everywhere";
 import { inApp, onAppEvent } from "./lib/platform";
 import { loadSettings, saveSettings } from "./lib/storage";
 
 const DRAG_THRESHOLD = 4;
+const DOT = 30;
+const SEGMENT = 28;
+const ACTIONS = 56;
 
 /**
- * The floating helper on other apps' text fields: a quiet dot that shows Matra is
- * there, a count when there are suggestions, and on hover a pill of quick actions.
- * Drag it anywhere; Matra keeps it there for that app.
+ * The floating helper on other apps' text fields. A quiet dot while you write; when
+ * Matra finds something it becomes a pill like Grammarly's: a light bulb for
+ * improvements and a red count for corrections, each opening its own suggestions.
+ * Hover for quick actions; drag it anywhere and Matra keeps it there for that app.
  */
 export default function Badge() {
   const preview = !inApp;
-  const [state, setState] = useState<BadgeState>(preview ? { status: "issues", count: 3 } : { status: "idle" });
+  const [state, setState] = useState<BadgeState>(
+    preview ? { status: "issues", count: 18, corrections: 15, improvements: 3 } : { status: "idle" },
+  );
   const [expanded, setExpanded] = useState(preview && new URLSearchParams(location.search).has("open"));
   const [dragging, setDragging] = useState(false);
   const down = useRef<{ x: number; y: number } | null>(null);
@@ -25,11 +31,18 @@ export default function Badge() {
     return onAppEvent<BadgeState>("matra://badge", setState);
   }, []);
 
+  const issues = state.status === "issues" ? state : null;
+  const segments = issues ? (issues.improvements > 0 ? 1 : 0) + (issues.corrections > 0 ? 1 : 0) : 0;
+  const mainWidth = segments === 2 ? SEGMENT * 2 + 6 : DOT;
+
+  // The window is exactly as wide as what it shows.
+  useEffect(() => {
+    badgeWidth(mainWidth + (expanded ? ACTIONS : 0));
+  }, [mainWidth, expanded]);
+
   const expand = (on: boolean) => {
     clearTimeout(collapseTimer.current);
-    if (on === expanded) return;
-    setExpanded(on);
-    badgeExpand(on);
+    if (on !== expanded) setExpanded(on);
   };
 
   const startDrag = async () => {
@@ -67,81 +80,90 @@ export default function Badge() {
     expand(false);
   };
 
-  const openMatra = () => {
+  /** A click that ended a drag is not a click. */
+  const click = (fn: () => void) => () => {
+    if (dragged.current) return;
     expand(false);
-    openPanel(state.status === "issues" ? "card" : "full");
+    fn();
   };
 
-  const dotLabel =
-    state.status === "issues"
-      ? `${state.count} suggestion${state.count === 1 ? "" : "s"}`
-      : state.status === "checking"
-        ? "Matra is checking…"
-        : state.status === "clean"
-          ? "Looks good"
-          : "Matra";
+  const dragProps = {
+    onPointerDown: (e: React.PointerEvent) => {
+      down.current = { x: e.clientX, y: e.clientY };
+      dragged.current = false;
+    },
+    onPointerMove: (e: React.PointerEvent) => {
+      const d = down.current;
+      if (!d || dragged.current || !(e.buttons & 1)) return;
+      if (Math.hypot(e.clientX - d.x, e.clientY - d.y) > DRAG_THRESHOLD) startDrag();
+    },
+    onPointerUp: () => {
+      down.current = null;
+    },
+  };
 
   return (
     <div
-      className={`badge-wrap${expanded ? " is-open" : ""}`}
+      className={`badge-wrap${expanded ? " is-open" : ""}${dragging ? " is-dragging" : ""}`}
       onPointerEnter={() => !dragging && expand(true)}
       onPointerLeave={() => {
         collapseTimer.current = setTimeout(() => expand(false), 450);
       }}
+      {...dragProps}
     >
       {expanded && (
         <div className="badge-actions" role="toolbar" aria-label="Matra quick actions">
-          <button className="badge-action" aria-label="Turn off Matra in this app" title="Turn off in this app" onClick={turnOffHere}>
+          <button className="badge-action" aria-label="Turn off Matra in this app" title="Turn off in this app" onClick={click(turnOffHere)}>
             <IconPower size={14} />
           </button>
-          <button
-            className="badge-action"
-            aria-label="Write with AI"
-            title="Write with AI"
-            onClick={() => {
-              expand(false);
-              openPanel("write");
-            }}
-          >
+          <button className="badge-action" aria-label="Write with AI" title="Write with AI" onClick={click(() => openPanel("write"))}>
             <IconSpark size={14} />
           </button>
         </div>
       )}
-      <button
-        className={`badge-btn badge-${state.status}${dragging ? " is-dragging" : ""}${expanded ? " is-big" : ""}`}
-        aria-label={`${dotLabel} — open Matra (drag to move)`}
-        title={expanded ? "Open Matra · drag to move" : dotLabel}
-        onPointerDown={(e) => {
-          down.current = { x: e.clientX, y: e.clientY };
-          dragged.current = false;
-        }}
-        onPointerMove={(e) => {
-          const d = down.current;
-          if (!d || dragged.current || !(e.buttons & 1)) return;
-          if (Math.hypot(e.clientX - d.x, e.clientY - d.y) > DRAG_THRESHOLD) startDrag();
-        }}
-        onPointerUp={() => {
-          down.current = null;
-        }}
-        onClick={() => {
-          if (dragged.current) return; // a drag is not a click
-          if (!expanded && state.status !== "issues") return expand(true); // first tap shows the actions
-          openMatra();
-        }}
-      >
-        {state.status === "issues" ? (
-          <span className="badge-count">{state.count > 99 ? "99+" : state.count}</span>
-        ) : state.status === "clean" && !expanded ? (
-          <IconCheck size={13} />
-        ) : expanded || state.status === "checking" ? (
-          <svg width="15" height="15" viewBox="0 0 64 64" aria-hidden="true">
-            <path d="M19 50V24l13 16 13-16v26" fill="none" stroke="currentColor" strokeWidth="7" strokeLinejoin="bevel" />
-            <rect x="12" y="13" width="40" height="7" rx="2" fill="#ea4c89" />
-          </svg>
-        ) : (
-          <span className="badge-dot" aria-hidden="true" />
-        )}
-      </button>
+      {issues ? (
+        <div className="badge-split" role="group" aria-label={`${issues.count} suggestions — drag to move`}>
+          {issues.improvements > 0 && (
+            <button
+              className="badge-seg badge-ideas"
+              aria-label={`${issues.improvements} improvement${issues.improvements === 1 ? "" : "s"}`}
+              title={`${issues.improvements} improvement${issues.improvements === 1 ? "" : "s"}: clarity, word choice, tone`}
+              onClick={click(() => openPanel("improvements"))}
+            >
+              <IconIdea size={15} />
+              {issues.corrections === 0 && <span className="badge-seg-num">{issues.improvements}</span>}
+            </button>
+          )}
+          {issues.corrections > 0 && (
+            <button
+              className="badge-seg badge-fixes"
+              aria-label={`${issues.corrections} correction${issues.corrections === 1 ? "" : "s"}`}
+              title={`${issues.corrections} correction${issues.corrections === 1 ? "" : "s"}: spelling, grammar, punctuation`}
+              onClick={click(() => openPanel("corrections"))}
+            >
+              {issues.corrections > 99 ? "99+" : issues.corrections}
+            </button>
+          )}
+        </div>
+      ) : (
+        <button
+          className={`badge-btn badge-${state.status}${expanded ? " is-big" : ""}`}
+          aria-label="Open Matra (drag to move)"
+          title={state.status === "checking" ? "Matra is checking…" : state.status === "clean" ? "Looks good" : "Open Matra · drag to move"}
+          onClick={click(() => openPanel("full"))}
+        >
+          {state.status === "clean" && !expanded ? (
+            <IconCheck size={13} />
+          ) : expanded || state.status === "checking" ? (
+            <svg width="15" height="15" viewBox="0 0 64 64" aria-hidden="true">
+              <path d="M19 50V24l13 16 13-16v26" fill="none" stroke="currentColor" strokeWidth="7" strokeLinejoin="bevel" />
+              <rect x="12" y="13" width="40" height="7" rx="2" fill="#ea4c89" />
+            </svg>
+          ) : (
+            <span className="badge-dot" aria-hidden="true" />
+          )}
+        </button>
+      )}
     </div>
   );
 }

@@ -52,7 +52,8 @@ pub struct State {
     /// The user is dragging the badge: don't move it under their pointer.
     pub badge_dragging: AtomicBool,
     /// The badge is showing its pill of actions.
-    pub badge_expanded: AtomicBool,
+    /// Badge window width in points: a dot, the corrections/improvements pill, or the actions pill.
+    pub badge_width: Mutex<f64>,
     /// Where the user dragged the badge, per app: offset from the field's top-left corner.
     pub badge_offsets: Mutex<HashMap<String, (f64, f64)>>,
     pub ignored_apps: Mutex<Vec<String>>,
@@ -76,7 +77,6 @@ pub const OVERLAY: &str = "underlines";
 pub const PANEL: &str = "panel";
 const BADGE_SIZE: f64 = 30.0;
 /// Width of the badge when it opens into a pill of actions (it grows to the left).
-const BADGE_PILL_WIDTH: f64 = 112.0;
 
 pub fn configure(state: &State, cfg: Config) {
     state.enabled.store(cfg.enabled, Ordering::Relaxed);
@@ -100,8 +100,9 @@ pub fn place_badge<R: Runtime>(app: &AppHandle<R>, f: &FieldInfo) {
         return;
     }
     let r = badge_rect(&state, f);
-    let expanded = state.badge_expanded.load(Ordering::Relaxed);
-    let (w, x) = if expanded { (BADGE_PILL_WIDTH, r.x - (BADGE_PILL_WIDTH - BADGE_SIZE)) } else { (BADGE_SIZE, r.x) };
+    // The badge grows to the left, so its right end (the dot) stays where the user put it.
+    let w = badge_width(&state);
+    let x = r.x - (w - BADGE_SIZE);
     let _ = badge.set_size(tauri::LogicalSize::new(w, BADGE_SIZE));
     let _ = badge.set_position(LogicalPosition::new(x.max(0.0), r.y.max(0.0)));
     let want = state.badge_wanted.load(Ordering::Relaxed);
@@ -111,6 +112,11 @@ pub fn place_badge<R: Runtime>(app: &AppHandle<R>, f: &FieldInfo) {
     } else if !want && shown {
         let _ = badge.hide();
     }
+}
+
+pub fn badge_width(state: &State) -> f64 {
+    let w = *state.badge_width.lock().unwrap();
+    if w < BADGE_SIZE { BADGE_SIZE } else { w.min(240.0) }
 }
 
 pub fn hide_overlay<R: Runtime>(app: &AppHandle<R>) {
@@ -231,7 +237,7 @@ pub fn badge_drag<R: Runtime>(app: &AppHandle<R>, start: bool) -> Option<(String
     let pos = badge.outer_position().ok()?.to_logical::<f64>(scale);
     let f = state.last.lock().unwrap().clone()?;
     // Offsets are stored for the collapsed dot, which sits at the pill's right end.
-    let extra = if state.badge_expanded.load(Ordering::Relaxed) { BADGE_PILL_WIDTH - BADGE_SIZE } else { 0.0 };
+    let extra = badge_width(&state) - BADGE_SIZE;
     let (dx, dy) = (pos.x + extra - f.x, pos.y - f.y);
     state.badge_offsets.lock().unwrap().insert(f.app.to_lowercase(), (dx, dy));
     Some((f.app, dx, dy))

@@ -379,3 +379,22 @@ test("Agents: plagiarism check and citation finder show sources", async ({ page 
   await expect(page.getByText("Example. (2026). Matra. https://example.com/b")).toBeVisible();
   expect(JSON.stringify(log.requests[1])).toContain("MLA");
 });
+
+test("the corrections card shows only correctness fixes; improvements are a click away", async ({ page }) => {
+  await mockGemini(page, {
+    check: {
+      language: "en",
+      score: 70,
+      tone_labels: [],
+      tone_summary: "",
+      issues: [
+        { category: "correctness", original: "has", replacement: "have", alternatives: [], prefix: "I ", title: "Agreement", explanation: "I have." },
+        { category: "clarity", original: "let me know", replacement: "please tell me", alternatives: [], prefix: "asked for, ", title: "Wordy", explanation: "Shorter." },
+      ],
+    },
+  });
+  await page.goto("/?view=panel&mode=card&group=corrections");
+  // The built-in checks may add more corrections; improvements must not appear here.
+  await expect(page.locator(".sugg-count")).toContainText("correction");
+  await expect(page.locator(".sugg-title")).not.toContainText("Wordy");
+});

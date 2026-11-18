@@ -62,6 +62,11 @@ export default function Panel() {
   const [shown, setShown] = useState(!inApp);
   const [writeNote, setWriteNote] = useState<string | null>(null);
   const [focusId, setFocusId] = useState<string | null>(null);
+  /** The badge's bulb opens improvements, its red count opens corrections. */
+  const [group, setGroup] = useState<"all" | "corrections" | "improvements">(() => {
+    const g = !inApp ? new URLSearchParams(location.search).get("group") : null;
+    return g === "corrections" || g === "improvements" ? g : "all";
+  });
   const anchor = useRef<ScreenRect | undefined>(undefined);
   const editor = useRef<EditorHandle>(null);
   const fromField = useRef(false);
@@ -159,8 +164,11 @@ export default function Panel() {
         sendBadge({ status: "idle" });
         setBadge(false);
       }),
-      onAppEvent<PanelMode | "write">("matra://mode", (m) => {
-        if (m === "write") {
+      onAppEvent<PanelMode | "write" | "corrections" | "improvements">("matra://mode", (m) => {
+        if (m === "corrections" || m === "improvements") {
+          setGroup(m);
+          open("card", true);
+        } else if (m === "write") {
           a.setTab("write");
           open("full", true);
         } else if (m === "full" && !textRef.current.trim()) {
@@ -179,7 +187,14 @@ export default function Panel() {
     const status = a.check.status;
     if (status === "checking") sendBadge({ status: "checking" });
     else if (status === "error") sendBadge({ status: "error" });
-    else if (status === "done") sendBadge(a.issues.length ? { status: "issues", count: a.issues.length } : { status: "clean" });
+    else if (status === "done") {
+      const corrections = a.issues.filter((i) => i.category === "correctness").length;
+      sendBadge(
+        a.issues.length
+          ? { status: "issues", count: a.issues.length, corrections, improvements: a.issues.length - corrections }
+          : { status: "clean" },
+      );
+    }
     else sendBadge({ status: "idle" });
 
     // A quiet dot whenever a text box is focused; it grows into a count or a check mark.
@@ -218,7 +233,16 @@ export default function Panel() {
       <SuggestionCard
         app={field?.app ?? "this app"}
         empty={!text.trim()}
-        issues={a.issues}
+        group={group}
+        onGroup={setGroup}
+        issues={
+          group === "corrections"
+            ? a.issues.filter((i) => i.category === "correctness")
+            : group === "improvements"
+              ? a.issues.filter((i) => i.category !== "correctness")
+              : a.issues
+        }
+        allCount={a.issues.length}
         hasKey={!!apiKey}
         onAccept={(id, replacement) => {
           a.accept(id, replacement);
@@ -232,7 +256,10 @@ export default function Panel() {
           if (!a.issues.length) a.setTab("write");
           open("full", true);
         }}
-        onClose={close}
+        onClose={() => {
+          setGroup("all");
+          close();
+        }}
         focusId={focusId}
         onResize={(h) => shown && showPanel(false, "card", h, anchor.current)}
       />
@@ -322,6 +349,9 @@ export default function Panel() {
 function SuggestionCard(p: {
   app: string;
   empty: boolean;
+  group: "all" | "corrections" | "improvements";
+  onGroup(g: "all" | "corrections" | "improvements"): void;
+  allCount: number;
   issues: Issue[];
   hasKey: boolean;
   onAccept(id: string, replacement?: string): void;
@@ -365,7 +395,15 @@ function SuggestionCard(p: {
       <header className="sugg-head" data-tauri-drag-region>
         <LogoMark size={16} />
         <span className="sugg-count" data-tauri-drag-region>
-          {issue ? `${p.issues.length} suggestion${p.issues.length === 1 ? "" : "s"}` : ""}
+          {issue
+            ? `${p.issues.length} ${
+                p.group === "corrections"
+                  ? p.issues.length === 1 ? "correction" : "corrections"
+                  : p.group === "improvements"
+                    ? p.issues.length === 1 ? "improvement" : "improvements"
+                    : p.issues.length === 1 ? "suggestion" : "suggestions"
+              }`
+            : ""}
         </span>
         {p.issues.length > 1 && (
           <span className="sugg-nav">
@@ -408,6 +446,16 @@ function SuggestionCard(p: {
             <button className="btn btn-quiet btn-sm" onClick={() => p.onDismiss(issue.id)}>Dismiss</button>
             <IssueMenu issue={issue} onAddWord={p.onAddWord} onMute={p.onMute} onReport={p.onReport} />
           </div>
+        </div>
+      ) : p.group !== "all" && p.allCount > 0 ? (
+        <div className="sugg-hero">
+          <span className="sugg-ok" aria-hidden="true">
+            <IconCheck size={18} />
+          </span>
+          <strong>{p.group === "corrections" ? "No corrections left" : "No improvements left"}</strong>
+          <button className="btn btn-quiet btn-sm" onClick={() => p.onGroup("all")}>
+            Show the other {p.allCount}
+          </button>
         </div>
       ) : p.empty ? (
         <div className="sugg-hero">
