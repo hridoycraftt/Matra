@@ -225,10 +225,102 @@ impl Element {
         unsafe { AXUIElementSetAttributeValue(self.0, attr.as_concrete_TypeRef(), v.as_CFTypeRef()) == AX_OK }
     }
 
+    /// A numeric attribute such as AXNumberOfCharacters.
+    fn number(&self, name: &str) -> Option<i64> {
+        self.copy_attr(name)?.downcast::<core_foundation::number::CFNumber>()?.to_i64()
+    }
+
+    /// Text of a range via AXStringForRange (Electron/Chromium editors that leave AXValue empty).
+    fn string_for_range(&self, start: usize, len: usize) -> Option<String> {
+        let range = CFRange { location: start as isize, length: len as isize };
+        let param = unsafe { AXValueCreate(AX_VALUE_CFRANGE, &range as *const _ as *const c_void) };
+        if param.is_null() {
+            return None;
+        }
+        let param = unsafe { CFType::wrap_under_create_rule(param) };
+        let attr = CFString::new("AXStringForRange");
+        let mut value: CFTypeRef = std::ptr::null();
+        let err = unsafe {
+            AXUIElementCopyParameterizedAttributeValue(self.0, attr.as_concrete_TypeRef(), param.as_CFTypeRef(), &mut value)
+        };
+        if err != AX_OK || value.is_null() {
+            return None;
+        }
+        unsafe { CFType::wrap_under_create_rule(value) }.downcast::<CFString>().map(|s| s.to_string())
+    }
+
+    /// Child elements (AXChildren).
+    fn children(&self) -> Vec<Element> {
+        let Some(v) = self.copy_attr("AXChildren") else { return vec![] };
+        let Some(arr) = v.downcast::<core_foundation::array::CFArray>() else { return vec![] };
+        arr.iter()
+            .filter_map(|item| {
+                let raw = *item as AXUIElementRef;
+                if raw.is_null() {
+                    return None;
+                }
+                unsafe { CFRetain(raw) };
+                Some(Element(raw))
+            })
+            .collect()
+    }
+
+    /// The field's full text. Native fields give AXValue; Electron/Chromium rich editors
+    /// (Discord, Slack, Notion…) often leave it empty, so ask by range, then walk the
+    /// paragraphs as a last resort.
+    pub fn full_text(&self) -> Option<String> {
+        let value = self.string("AXValue");
+        if value.as_deref().is_some_and(|v| !v.is_empty()) {
+            return value;
+        }
+        if let Some(n) = self.number("AXNumberOfCharacters").filter(|n| *n > 0) {
+            if let Some(t) = self.string_for_range(0, n as usize).filter(|t| !t.is_empty()) {
+                return Some(t);
+            }
+        }
+        let mut lines = Vec::new();
+        collect_text(self, 0, &mut lines);
+        let joined = lines.join("\n");
+        if !joined.trim().is_empty() {
+            return Some(joined);
+        }
+        value
+    }
+
     pub fn set_bool(&self, name: &str, value: bool) -> bool {
         let attr = CFString::new(name);
         let v = if value { CFBoolean::true_value() } else { CFBoolean::false_value() };
         unsafe { AXUIElementSetAttributeValue(self.0, attr.as_concrete_TypeRef(), v.as_CFTypeRef()) == AX_OK }
+    }
+}
+
+/// Gather paragraph text from a rich editor's children (one line per paragraph).
+fn collect_text(el: &Element, depth: usize, out: &mut Vec<String>) {
+    if depth > 6 || out.len() > 2000 {
+        return;
+    }
+    let role = el.string("AXRole").unwrap_or_default();
+    if role == "AXStaticText" {
+        if let Some(t) = el.string("AXValue") {
+            out.push(t);
+        }
+        return;
+    }
+    let kids = el.children();
+    let block = depth > 0 && (role == "AXGroup" || role == "AXParagraph");
+    if block {
+        // A paragraph: join its runs on one line.
+        let mut runs = Vec::new();
+        for k in &kids {
+            collect_text(k, depth + 1, &mut runs);
+        }
+        if !runs.is_empty() {
+            out.push(runs.concat());
+        }
+        return;
+    }
+    for k in &kids {
+        collect_text(k, depth + 1, out);
     }
 }
 
@@ -255,10 +347,19 @@ pub fn focused_field() -> Option<Field> {
     if role == "AXSecureTextField" || subrole == "AXSecureTextField" {
         return None;
     }
-    if !TEXT_ROLES.contains(&role.as_str()) {
-        return None;
+    // Focus can land inside a rich editor (on a paragraph); climb to the text box itself.
+    let mut element = element;
+    let mut role = role;
+    let mut hops = 0;
+    while !TEXT_ROLES.contains(&role.as_str()) {
+        hops += 1;
+        if hops > 4 {
+            return None;
+        }
+        element = element.element("AXParent")?;
+        role = element.string("AXRole").unwrap_or_default();
     }
-    let text = element.string("AXValue")?;
+    let text = element.full_text()?;
     let pid = element.pid()?;
     let pos = element.point("AXPosition")?;
     let size = element.size("AXSize")?;

@@ -1,6 +1,6 @@
-Matra 0.4.10 — the small details, like Grammarly.
-• Rest the mouse on an underlined word in any app: a small card opens right under it with the fix (the changed part highlighted — click it to apply), Dismiss, and "See more in Matra". The word gets a soft highlight while you look.
-• The text-box helper works like Grammarly's: a quiet dot, a red number when there are suggestions, and on hover four buttons — turn off, send feedback, Write with AI (light bulb) and open Matra. Even padding on every side.
-• Light bulb: "Set your voice", ideas to start from, and a box to tell Matra what to write. Insert or Replace puts the result straight into the app.
-• Power button: "Turn off Matra for this app?" — for this session, from now on, or not at all.
-• The rewrite card for selected text lines up neatly.
+## Matra 0.4.11
+
+- **Discord, Slack and other Electron apps:** Matra now reads long, multi-paragraph messages in these apps, so underlines, the suggestion count on the M and corrections show up again.
+- **Write with AI → Improve it:** your text comes in from the field automatically and appears above the result, with a clear "rewriting…" state instead of an empty box.
+- **Settings → Apps:** each app shows its real icon and sits in a category (Social & Communication, Productivity, Browsers, Design, Developer Tools…), with Apple's own apps together. Turn a whole group on or off in one click.
+- **Hover pill:** no longer cut off at the edge.

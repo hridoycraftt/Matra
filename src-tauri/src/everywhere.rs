@@ -140,41 +140,188 @@ pub fn is_ignored(ignored: &[String], app: &str) -> bool {
 
 /// Apps installed on this Mac, by name, for Settings → Apps. Read fresh each time, so
 /// newly installed apps appear and removed ones disappear.
-pub fn installed_apps() -> Vec<String> {
-    let mut dirs = vec![
-        "/Applications".to_string(),
-        "/Applications/Utilities".to_string(),
-        "/System/Applications".to_string(),
-        "/System/Applications/Utilities".to_string(),
+/// An installed app as Settings → Apps shows it.
+#[derive(Clone, serde::Serialize)]
+pub struct AppInfo {
+    pub name: String,
+    pub path: String,
+    /// Friendly category from the app's own LSApplicationCategoryType ("" when it declares none).
+    pub category: String,
+    /// Made by Apple (lives in /System/Applications or has a com.apple bundle id).
+    pub apple: bool,
+}
+
+/// Map Apple's category ids to the names the App Store uses.
+pub fn category_name(id: &str) -> &'static str {
+    match id.trim_start_matches("public.app-category.") {
+        "productivity" => "Productivity",
+        "business" => "Business",
+        "developer-tools" => "Developer Tools",
+        "graphics-design" => "Graphics & Design",
+        "photography" => "Photo & Video",
+        "video" => "Photo & Video",
+        "social-networking" => "Social & Communication",
+        "entertainment" => "Entertainment",
+        "music" => "Music & Audio",
+        "education" => "Education",
+        "reference" => "Reference",
+        "utilities" => "Utilities",
+        "finance" => "Finance",
+        "news" => "News",
+        "lifestyle" => "Lifestyle",
+        "healthcare-fitness" | "medical" => "Health & Fitness",
+        "travel" | "navigation" | "weather" => "Travel & Maps",
+        "sports" => "Sports",
+        "games" => "Games",
+        id if id.ends_with("-games") => "Games",
+        _ => "",
+    }
+}
+
+/// Apps whose plist declares no category, placed by what they are.
+fn guess_category(name: &str) -> &'static str {
+    const SOCIAL: [&str; 12] = ["Discord", "Slack", "WhatsApp", "Telegram", "Messenger", "Signal", "Zoom", "Microsoft Teams", "Skype", "Messages", "FaceTime", "Mail"];
+    const BROWSERS: [&str; 9] = ["Google Chrome", "Safari", "Firefox", "Arc", "Brave Browser", "Microsoft Edge", "Opera", "Vivaldi", "Chromium"];
+    const DESIGN: [&str; 6] = ["Figma", "Sketch", "Framer", "Canva", "Affinity", "Adobe"];
+    const DEV: [&str; 8] = ["Xcode", "Terminal", "iTerm", "Visual Studio Code", "Cursor", "Zed", "GitHub Desktop", "Docker"];
+    const WORK: [&str; 10] = ["Notion", "Obsidian", "Notes", "Pages", "Microsoft Word", "Microsoft Excel", "Microsoft PowerPoint", "Keynote", "Numbers", "Linear"];
+    let starts = |list: &[&str]| list.iter().any(|p| name.starts_with(p));
+    if starts(&BROWSERS) {
+        "Browsers"
+    } else if starts(&SOCIAL) {
+        "Social & Communication"
+    } else if starts(&DESIGN) {
+        "Graphics & Design"
+    } else if starts(&DEV) {
+        "Developer Tools"
+    } else if starts(&WORK) {
+        "Productivity"
+    } else {
+        ""
+    }
+}
+
+fn read_app(path: &std::path::Path, system_dir: bool) -> Option<AppInfo> {
+    let name = path.file_stem()?.to_string_lossy().to_string();
+    let plist = plist::Value::from_file(path.join("Contents/Info.plist")).ok();
+    let dict = plist.as_ref().and_then(|v| v.as_dictionary());
+    let get = |k: &str| dict.and_then(|d| d.get(k)).and_then(|v| v.as_string()).unwrap_or("").to_string();
+    let bundle = get("CFBundleIdentifier");
+    let declared = category_name(&get("LSApplicationCategoryType"));
+    // Browsers declare "productivity"; group them on their own like iOS does.
+    let guessed = guess_category(&name);
+    let category = if guessed == "Browsers" || declared.is_empty() { guessed } else { declared };
+    Some(AppInfo {
+        name,
+        path: path.to_string_lossy().to_string(),
+        category: category.to_string(),
+        apple: system_dir || bundle.starts_with("com.apple."),
+    })
+}
+
+/// Apps installed on this Mac, so Settings can list them A–Z (new apps appear, removed ones go).
+pub fn installed_apps() -> Vec<AppInfo> {
+    let mut dirs: Vec<(String, bool)> = vec![
+        ("/Applications".into(), false),
+        ("/Applications/Utilities".into(), true),
+        ("/System/Applications".into(), true),
+        ("/System/Applications/Utilities".into(), true),
     ];
     if let Ok(home) = std::env::var("HOME") {
-        dirs.push(format!("{home}/Applications"));
+        dirs.push((format!("{home}/Applications"), false));
     }
-    let mut names: Vec<String> = Vec::new();
-    for dir in dirs {
+    let mut apps: Vec<AppInfo> = Vec::new();
+    for (dir, system) in dirs {
         let Ok(entries) = std::fs::read_dir(&dir) else { continue };
         for e in entries.flatten() {
-            let name = e.file_name().to_string_lossy().to_string();
-            if let Some(app) = name.strip_suffix(".app") {
-                names.push(app.to_string());
-            } else if e.path().is_dir() && dir == "/Applications" {
+            let path = e.path();
+            if path.extension().is_some_and(|x| x == "app") {
+                apps.extend(read_app(&path, system));
+            } else if path.is_dir() && dir == "/Applications" {
                 // Suites keep apps one folder down (e.g. /Applications/Adobe Photoshop 2026/…app).
-                if let Ok(inner) = std::fs::read_dir(e.path()) {
+                if let Ok(inner) = std::fs::read_dir(&path) {
                     for i in inner.flatten() {
-                        let n = i.file_name().to_string_lossy().to_string();
-                        if let Some(app) = n.strip_suffix(".app") {
-                            names.push(app.to_string());
+                        if i.path().extension().is_some_and(|x| x == "app") {
+                            apps.extend(read_app(&i.path(), false));
                         }
                     }
                 }
             }
         }
     }
-    names.retain(|n| n != "Matra" && !n.starts_with('.'));
-    names.sort_by_key(|n| n.to_lowercase());
-    names.dedup();
-    names
+    apps.retain(|a| a.name != "Matra" && !a.name.starts_with('.'));
+    apps.sort_by_key(|a| a.name.to_lowercase());
+    apps.dedup_by(|a, b| a.name == b.name);
+    apps
 }
+
+/// The app's real icon as a small PNG data URL, cached on disk.
+pub fn app_icon(path: &str, cache_dir: &std::path::Path) -> Option<String> {
+    use base64::Engine;
+    use std::hash::{Hash, Hasher};
+    let app = std::path::Path::new(path);
+    if app.extension().is_none_or(|x| x != "app") || !app.exists() {
+        return None;
+    }
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    path.hash(&mut h);
+    let modified = std::fs::metadata(app).and_then(|m| m.modified()).ok();
+    modified.hash(&mut h);
+    let dir = cache_dir.join("app-icons");
+    std::fs::create_dir_all(&dir).ok()?;
+    let out = dir.join(format!("{:016x}.png", h.finish()));
+    if !out.exists() {
+        render_icon(app, &out, &dir);
+    }
+    let bytes = std::fs::read(&out).ok()?;
+    Some(format!("data:image/png;base64,{}", base64::engine::general_purpose::STANDARD.encode(bytes)))
+}
+
+#[cfg(target_os = "macos")]
+fn render_icon(app: &std::path::Path, out: &std::path::Path, dir: &std::path::Path) {
+    use std::process::Command;
+    // 1) The .icns the app names in its Info.plist.
+    let plist = plist::Value::from_file(app.join("Contents/Info.plist")).ok();
+    let icon = plist
+        .as_ref()
+        .and_then(|v| v.as_dictionary())
+        .and_then(|d| d.get("CFBundleIconFile"))
+        .and_then(|v| v.as_string())
+        .map(|f| if f.ends_with(".icns") { f.to_string() } else { format!("{f}.icns") });
+    if let Some(file) = icon {
+        let icns = app.join("Contents/Resources").join(file);
+        if icns.exists() {
+            let ok = Command::new("sips")
+                .args(["-s", "format", "png", "--resampleHeightWidthMax", "64"])
+                .arg(&icns)
+                .arg("--out")
+                .arg(out)
+                .output()
+                .is_ok_and(|o| o.status.success());
+            if ok && out.exists() {
+                return;
+            }
+        }
+    }
+    // 2) Apps with only an asset catalog: let Quick Look draw the icon.
+    let tmp = dir.join("ql");
+    let _ = std::fs::create_dir_all(&tmp);
+    let ok = Command::new("qlmanage")
+        .args(["-t", "-s", "64", "-o"])
+        .arg(&tmp)
+        .arg(app)
+        .output()
+        .is_ok_and(|o| o.status.success());
+    if ok {
+        if let Some(name) = app.file_name() {
+            let made = tmp.join(format!("{}.png", name.to_string_lossy()));
+            let _ = std::fs::rename(made, out);
+        }
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn render_icon(_app: &std::path::Path, _out: &std::path::Path, _dir: &std::path::Path) {}
 
 pub fn badge_width(state: &State) -> f64 {
     let w = *state.badge_width.lock().unwrap();
@@ -670,4 +817,19 @@ pub fn write_field<R: Runtime>(app: &AppHandle<R>, text: &str, whole: bool) -> R
 #[cfg(not(target_os = "macos"))]
 pub fn write_field<R: Runtime>(_app: &AppHandle<R>, _text: &str, _whole: bool) -> Result<&'static str, String> {
     Err("Writing to other apps is only supported on macOS.".into())
+}
+
+#[cfg(test)]
+mod app_category_tests {
+    use super::{category_name, guess_category};
+
+    #[test]
+    fn maps_apple_categories_to_store_names() {
+        assert_eq!(category_name("public.app-category.developer-tools"), "Developer Tools");
+        assert_eq!(category_name("public.app-category.social-networking"), "Social & Communication");
+        assert_eq!(category_name("public.app-category.puzzle-games"), "Games");
+        assert_eq!(category_name("nonsense"), "");
+        assert_eq!(guess_category("Discord"), "Social & Communication");
+        assert_eq!(guess_category("Google Chrome"), "Browsers");
+    }
 }

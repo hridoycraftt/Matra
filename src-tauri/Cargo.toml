@@ -1,6 +1,6 @@
 [package]
 name = "matra"
-version = "0.4.10"
+version = "0.4.11"
 description = "Matra — AI writing partner for English and Bangla"
 edition = "2021"
 publish = false
@@ -21,6 +21,8 @@ tauri-plugin-autostart = "2"
 tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+plist = "1"
+base64 = "0.23"
 
 # The API key lives in the macOS Keychain.
 [target.'cfg(target_os = "macos")'.dependencies]

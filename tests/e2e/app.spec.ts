@@ -455,6 +455,17 @@ test("Settings → Apps: every app has a switch; design and code apps start off"
   expect(off).not.toContain("Figma");
 });
 
+test("Settings → Apps: apps are grouped by category, Apple's own apps together", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await page.getByRole("navigation", { name: "Settings sections" }).getByRole("button", { name: "Apps", exact: true }).click();
+  const social = page.getByRole("region", { name: "Social & Communication" });
+  await expect(social.getByRole("switch", { name: "Matra in Discord" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Apple" }).getByRole("switch", { name: "Matra in Mail" })).toBeVisible();
+  await social.getByRole("button", { name: "Turn all off" }).click();
+  await expect(social.getByRole("switch", { name: "Matra in Slack" })).toHaveAttribute("aria-checked", "false");
+});
+
 const ONE_ISSUE = {
   language: "en",
   score: 70,
@@ -491,6 +502,8 @@ test("bulb card: ideas for the text, and a result to put back", async ({ page })
   const card = page.getByRole("dialog", { name: "Write with AI" });
   await expect(card.getByText("Set your voice")).toBeVisible();
   await card.getByRole("button", { name: "Improve it" }).click();
+  // The field's text comes along by itself; nothing to paste.
+  await expect(card.locator(".ai-source p")).not.toBeEmpty();
   await expect(card.locator(".writer-output")).toHaveText("Thanks for your quick reply.");
   await expect(card.getByRole("button", { name: "Replace" })).toBeVisible();
 });

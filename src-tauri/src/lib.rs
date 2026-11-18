@@ -110,8 +110,15 @@ fn pause_app(app: AppHandle, name: String) {
 
 /// Apps installed on this Mac, for Settings → Apps.
 #[tauri::command]
-fn installed_apps() -> Vec<String> {
+fn installed_apps() -> Vec<everywhere::AppInfo> {
     everywhere::installed_apps()
+}
+
+/// An app's real icon (PNG data URL), rendered once and cached.
+#[tauri::command]
+async fn app_icon(app: AppHandle, path: String) -> Option<String> {
+    let cache = app.path().app_cache_dir().ok()?;
+    tauri::async_runtime::spawn_blocking(move || everywhere::app_icon(&path, &cache)).await.ok().flatten()
 }
 
 #[tauri::command]
@@ -340,6 +347,7 @@ pub fn run() {
             accessibility_status,
             open_accessibility_settings,
             installed_apps,
+            app_icon,
             pause_app,
             reset_accessibility,
             current_field,

@@ -323,6 +323,7 @@ export default function Panel() {
     return (
       <AICard
         hasText={!!text.trim()}
+        source={text}
         voiceSet={!!settings.voice.profile}
         onSetVoice={() => openMain(true, "voice")}
         onRun={(prompt, on, signal) =>
@@ -847,6 +848,8 @@ type AIPrompt = { kind: "rewrite"; mode: RewriteMode; label: string } | { kind: 
 /** The bulb's card: set your voice, ideas to start from, or say what to write. */
 function AICard(p: {
   hasText: boolean;
+  /** The text in the field: rewrites start from it automatically. */
+  source: string;
   voiceSet: boolean;
   onSetVoice(): void;
   onRun(prompt: AIPrompt, onText: (s: string) => void, signal: AbortSignal): Promise<string>;
@@ -902,8 +905,21 @@ function AICard(p: {
       {out || busy || error ? (
         <div className="sugg-body">
           <div className="ai-label">{last.current?.label}</div>
+          {last.current?.kind === "rewrite" && (
+            <div className="ai-source" title="Your text, taken from the field">
+              <span>Your text</span>
+              <p>{p.source.trim()}</p>
+            </div>
+          )}
           {error ? (
             <div className="notice notice-error" role="alert">{error}</div>
+          ) : busy && !out ? (
+            <div className="ai-pending" role="status">
+              <span className="ai-pending-line" />
+              <span className="ai-pending-line" />
+              <span className="ai-pending-line is-short" />
+              <em>{last.current?.kind === "rewrite" ? "Matra is rewriting your text…" : "Matra is writing…"}</em>
+            </div>
           ) : (
             <div className={`writer-output sel-out${busy ? " is-streaming" : ""}`} aria-live="polite">{out}</div>
           )}

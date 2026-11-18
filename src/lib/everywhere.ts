@@ -32,11 +32,51 @@ export async function accessibilityStatus(prompt: boolean): Promise<boolean> {
 }
 
 /** Apps installed on this Mac (read fresh each call, so new and removed apps show up). */
-export async function installedApps(): Promise<string[]> {
+/** An installed app as Settings → Apps lists it. */
+export type AppInfo = { name: string; path: string; category: string; apple: boolean };
+
+export async function installedApps(): Promise<AppInfo[]> {
   if (!inApp) {
-    return ["Figma", "Google Chrome", "Mail", "Messages", "Notes", "Notion", "Pages", "Safari", "Slack", "Terminal", "WhatsApp", "Xcode"];
+    const demo: [string, string, boolean][] = [
+      ["Discord", "Social & Communication", false],
+      ["Figma", "Graphics & Design", false],
+      ["Google Chrome", "Browsers", false],
+      ["Mail", "", true],
+      ["Messages", "", true],
+      ["Notes", "", true],
+      ["Notion", "Productivity", false],
+      ["Pages", "Productivity", true],
+      ["Safari", "Browsers", true],
+      ["Slack", "Social & Communication", false],
+      ["Spotify", "Music & Audio", false],
+      ["Terminal", "", true],
+      ["WhatsApp", "Social & Communication", false],
+      ["Xcode", "Developer Tools", false],
+    ];
+    return demo.map(([name, category, apple]) => ({ name, category, apple, path: `/Applications/${name}.app` }));
   }
-  return invoke<string[]>("installed_apps");
+  return invoke<AppInfo[]>("installed_apps");
+}
+
+// Real app icons, rendered once by the Mac and kept for the session.
+const icons = new Map<string, Promise<string | null>>();
+let running = 0;
+const waiting: (() => void)[] = [];
+export function appIcon(path: string): Promise<string | null> {
+  if (!inApp) return Promise.resolve(null);
+  let p = icons.get(path);
+  if (!p) {
+    // A few at a time, so the first open of a long list stays smooth.
+    p = new Promise<void>((go) => (running < 4 ? (running++, go()) : waiting.push(() => (running++, go()))))
+      .then(() => invoke<string | null>("app_icon", { path }))
+      .catch(() => null)
+      .finally(() => {
+        running--;
+        waiting.shift()?.();
+      });
+    icons.set(path, p);
+  }
+  return p;
 }
 
 /** Remove a stale permission entry from an older Matra build, then ask macOS again. */

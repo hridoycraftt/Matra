@@ -2348,14 +2348,16 @@ dependencies = [
 
 [[package]]
 name = "matra"
-version = "0.4.10"
+version = "0.4.11"
 dependencies = [
  "arboard",
+ "base64 0.23.1",
  "core-foundation 0.10.1",
  "core-foundation-sys",
  "enigo",
  "keyring",
  "objc2",
+ "plist",
  "serde",
  "serde_json",
  "tauri",

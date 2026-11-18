@@ -13,7 +13,7 @@ import { ANTHROPIC_MODELS, DEFAULT_GOOGLE_MODEL, PROVIDERS, type Provider, type 
 import { checkForUpdate, currentVersion, installUpdate, type UpdateState } from "../lib/updater";
 import { IconAI, IconApps, IconCheck, IconDictionary, IconGeneral, IconSnippets, IconStyle, IconUpdates, IconVoice, IconX, IconAppList, IconSearch } from "./Icons";
 import { learnVoice } from "../lib/agents";
-import { installedApps } from "../lib/everywhere";
+import { appIcon, installedApps, type AppInfo } from "../lib/everywhere";
 import { friendlyError } from "../lib/ai";
 
 /** Browser preview only (?previewApp): show the Mac-app-only rows so they can be reviewed. */
@@ -396,8 +396,52 @@ function Chips({ items, onRemove, label }: { items: string[]; onRemove(x: string
   );
 }
 
+/** iOS-style order: everyday groups first, Apple's own apps and the rest at the end. */
+const APP_GROUPS = [
+  "Social & Communication",
+  "Productivity",
+  "Business",
+  "Browsers",
+  "Graphics & Design",
+  "Photo & Video",
+  "Developer Tools",
+  "Education",
+  "Reference",
+  "News",
+  "Finance",
+  "Music & Audio",
+  "Entertainment",
+  "Lifestyle",
+  "Health & Fitness",
+  "Travel & Maps",
+  "Sports",
+  "Games",
+  "Utilities",
+  "Apple",
+  "Other",
+];
+const groupOf = (a: AppInfo) => (a.apple ? "Apple" : a.category || "Other");
+
+function AppIcon({ app }: { app: AppInfo }) {
+  const [src, setSrc] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    appIcon(app.path).then((s) => alive && setSrc(s));
+    return () => {
+      alive = false;
+    };
+  }, [app.path]);
+  return src ? (
+    <img className="app-icon" src={src} alt="" width={28} height={28} draggable={false} />
+  ) : (
+    <span className="app-avatar" style={{ background: avatarColor(app.name) }} aria-hidden="true">
+      {app.name.replace(/^(Adobe|Microsoft|Google)\s+/, "").charAt(0).toUpperCase()}
+    </span>
+  );
+}
+
 function AppList({ settings, onSettings }: SettingsProps) {
-  const [apps, setApps] = useState<string[] | null>(null);
+  const [apps, setApps] = useState<AppInfo[] | null>(null);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<"all" | "on" | "off">("all");
   // Read the installed apps now and every few seconds, so installs and removals show up.
@@ -419,16 +463,18 @@ function AppList({ settings, onSettings }: SettingsProps) {
     const rest = settings.ignoredApps.filter((a) => a.toLowerCase() !== lower && !(lower.startsWith(a.toLowerCase() + " ") && /^\d/.test(name.slice(a.length + 1))));
     onSettings({ ...settings, ignoredApps: on ? rest : [...rest, name] });
   };
+  const q = query.trim().toLowerCase();
   const shown = (apps ?? []).filter(
-    (a) => a.toLowerCase().includes(query.trim().toLowerCase()) && (filter === "all" || (filter === "off") === isOff(a)),
+    (a) => (a.name.toLowerCase().includes(q) || groupOf(a).toLowerCase().includes(q)) && (filter === "all" || (filter === "off") === isOff(a.name)),
   );
-  const onCount = (apps ?? []).filter((a) => !isOff(a)).length;
+  const groups = APP_GROUPS.map((g) => ({ name: g, apps: shown.filter((a) => groupOf(a) === g) })).filter((g) => g.apps.length);
+  const onCount = (apps ?? []).filter((a) => !isOff(a.name)).length;
   return (
     <>
       <div className="applist-tools">
         <label className="search">
           <IconSearch size={15} />
-          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search apps" aria-label="Search apps" />
+          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search apps or categories" aria-label="Search apps" />
         </label>
         <div className="segmented applist-filter" role="tablist" aria-label="Show apps">
           {(["all", "on", "off"] as const).map((f) => (
@@ -438,25 +484,44 @@ function AppList({ settings, onSettings }: SettingsProps) {
           ))}
         </div>
       </div>
-      <div className="sgroup">
-        {apps === null ? (
-          <div className="sblock"><p className="srow-detail">Looking at your apps…</p></div>
-        ) : shown.length === 0 ? (
-          <div className="sblock"><p className="srow-detail">No apps match.</p></div>
-        ) : (
-          shown.map((name) => (
-            <div className="srow app-row" key={name}>
-              <div className="app-name">
-                <span className="app-avatar" style={{ background: avatarColor(name) }} aria-hidden="true">
-                  {name.replace(/^(Adobe|Microsoft|Google)\s+/, "").charAt(0).toUpperCase()}
-                </span>
-                <span className="srow-label">{name}</span>
+      {apps === null ? (
+        <div className="sgroup"><div className="sblock"><p className="srow-detail">Looking at your apps…</p></div></div>
+      ) : groups.length === 0 ? (
+        <div className="sgroup"><div className="sblock"><p className="srow-detail">No apps match.</p></div></div>
+      ) : (
+        groups.map((g) => {
+          const allOn = g.apps.every((a) => !isOff(a.name));
+          return (
+            <section className="app-group" key={g.name} aria-label={g.name}>
+              <header className="app-group-head">
+                <h3>{g.name}</h3>
+                <span>{g.apps.length}</span>
+                <button
+                  className="app-group-all"
+                  onClick={() => {
+                    const names = new Set(g.apps.map((a) => a.name.toLowerCase()));
+                    const rest = settings.ignoredApps.filter((n) => !names.has(n.toLowerCase()));
+                    onSettings({ ...settings, ignoredApps: allOn ? [...rest, ...g.apps.map((a) => a.name)] : rest });
+                  }}
+                >
+                  {allOn ? "Turn all off" : "Turn all on"}
+                </button>
+              </header>
+              <div className="sgroup">
+                {g.apps.map((app) => (
+                  <div className="srow app-row" key={app.path}>
+                    <div className="app-name">
+                      <AppIcon app={app} />
+                      <span className="srow-label">{app.name}</span>
+                    </div>
+                    <Switch label={`Matra in ${app.name}`} checked={!isOff(app.name)} onChange={(on) => toggle(app.name, on)} />
+                  </div>
+                ))}
               </div>
-              <Switch label={`Matra in ${name}`} checked={!isOff(name)} onChange={(on) => toggle(name, on)} />
-            </div>
-          ))
-        )}
-      </div>
+            </section>
+          );
+        })
+      )}
       <p className="snote">Design and code apps like Figma, Xcode and Terminal start switched off; switch any app on or off here.</p>
     </>
   );
