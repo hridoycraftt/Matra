@@ -26,6 +26,9 @@ export async function accessibilityStatus(prompt: boolean): Promise<boolean> {
   return invoke<boolean>("accessibility_status", { prompt });
 }
 
+/** Remove a stale permission entry from an older Matra build, then ask macOS again. */
+export const resetAccessibility = () => (inApp ? invoke<boolean>("reset_accessibility") : Promise.resolve(false));
+
 export const openAccessibilitySettings = () => (inApp ? invoke("open_accessibility_settings") : Promise.resolve());
 
 export function configureEverywhere(s: Settings) {

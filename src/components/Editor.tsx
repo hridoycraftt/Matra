@@ -1,5 +1,6 @@
-import { forwardRef, useImperativeHandle, useLayoutEffect, useRef } from "react";
-import type { Issue } from "../lib/types";
+import { forwardRef, useImperativeHandle, useLayoutEffect, useRef, useState } from "react";
+import type { Issue, RewriteMode } from "../lib/types";
+import { SelectionPill } from "./SelectionPill";
 
 export interface EditorHandle {
   focus(): void;
@@ -15,6 +16,8 @@ interface Props {
   onCaret(pos: number): void;
   placeholder?: string;
   compact?: boolean;
+  /** Quick rewrite of the selected text, from the pill that appears next to a selection. */
+  onSelectionAction?(mode: RewriteMode, custom?: string): void;
 }
 
 /**
@@ -22,10 +25,25 @@ interface Props {
  * so typing, IME input (Bangla keyboards), undo and spellcheck stay native.
  */
 export const Editor = forwardRef<EditorHandle, Props>(function Editor(
-  { text, issues, activeId, onChange, onCaret, placeholder, compact },
+  { text, issues, activeId, onChange, onCaret, placeholder, compact, onSelectionAction },
   ref,
 ) {
   const area = useRef<HTMLTextAreaElement>(null);
+  const box = useRef<HTMLDivElement>(null);
+  const [pill, setPill] = useState<{ x: number; y: number } | null>(null);
+
+  /** After a selection ends, show the pill just above where the pointer let go. */
+  const maybeShowPill = (clientX?: number, clientY?: number) => {
+    const el = area.current;
+    const wrap = box.current;
+    if (!onSelectionAction || !el || !wrap) return;
+    const selected = el.value.slice(el.selectionStart, el.selectionEnd).trim();
+    if (!selected) return setPill(null);
+    const r = wrap.getBoundingClientRect();
+    const x = clientX !== undefined ? clientX - r.left : 0;
+    const y = clientY !== undefined ? clientY - r.top : 0;
+    setPill({ x: Math.max(0, Math.min(x - 40, r.width - 360)), y: Math.max(-44, y - 46) });
+  };
 
   useImperativeHandle(ref, () => ({
     focus: () => area.current?.focus(),
@@ -68,7 +86,7 @@ export const Editor = forwardRef<EditorHandle, Props>(function Editor(
   const report = () => onCaret(area.current?.selectionStart ?? 0);
 
   return (
-    <div className={`editor${compact ? " is-compact" : ""}`}>
+    <div className={`editor${compact ? " is-compact" : ""}`} ref={box}>
       <div className="editor-backdrop" aria-hidden="true">
         {segments}
       </div>
@@ -81,12 +99,30 @@ export const Editor = forwardRef<EditorHandle, Props>(function Editor(
         autoCorrect="off"
         autoCapitalize="sentences"
         aria-label="Document text"
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) => {
+          setPill(null);
+          onChange(e.target.value);
+        }}
         onClick={report}
+        onMouseUp={(e) => maybeShowPill(e.clientX, e.clientY)}
         onKeyUp={(e) => {
           if (e.key.startsWith("Arrow") || e.key === "Home" || e.key === "End") report();
+          if (e.shiftKey && e.key.startsWith("Arrow")) maybeShowPill();
+          if (e.key === "Escape") setPill(null);
         }}
+        onBlur={() => setTimeout(() => setPill(null), 150)}
       />
+      {pill && onSelectionAction && (
+        <SelectionPill
+          x={pill.x}
+          y={pill.y}
+          onRun={(mode, custom) => {
+            setPill(null);
+            onSelectionAction(mode, custom);
+          }}
+          onClose={() => setPill(null)}
+        />
+      )}
     </div>
   );
 });

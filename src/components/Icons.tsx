@@ -48,8 +48,10 @@ export const IconCopy = ({ size }: P) => (
 export const IconArrowDown = ({ size }: P) => (
   <svg {...base(size)}><path d="M12 4v15M6 13l6 6 6-6" /></svg>
 );
-export const IconChevron = ({ size }: P) => (
-  <svg {...base(size)}><path d="M6 9l6 6 6-6" /></svg>
+export const IconChevron = ({ size, dir = "down" }: P & { dir?: "down" | "left" | "right" | "up" }) => (
+  <svg {...base(size)} style={{ transform: `rotate(${{ down: 0, left: 90, up: 180, right: -90 }[dir]}deg)` }}>
+    <path d="M6 9l6 6 6-6" />
+  </svg>
 );
 
 /** Matra's logo mark: an M hanging from the pink bar. */

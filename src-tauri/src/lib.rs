@@ -75,6 +75,27 @@ fn accessibility_status(prompt: bool) -> bool {
     }
 }
 
+/// Clear a stale Accessibility entry (left by an older build) and ask macOS again.
+#[tauri::command]
+fn reset_accessibility(app: AppHandle) -> bool {
+    #[cfg(target_os = "macos")]
+    {
+        let id = app.config().identifier.clone();
+        let _ = std::process::Command::new("tccutil").args(["reset", "Accessibility", &id]).status();
+        std::thread::sleep(std::time::Duration::from_millis(300));
+        let trusted = ax::request_trust();
+        if !trusted {
+            open_accessibility_settings();
+        }
+        trusted
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = app;
+        false
+    }
+}
+
 #[tauri::command]
 fn open_accessibility_settings() {
     #[cfg(target_os = "macos")]
@@ -281,6 +302,7 @@ pub fn run() {
             configure_everywhere,
             accessibility_status,
             open_accessibility_settings,
+            reset_accessibility,
             current_field,
             write_field,
             show_panel,

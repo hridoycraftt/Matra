@@ -7,7 +7,7 @@ test("asks for an API key before the first check", async ({ page }) => {
   await page.getByRole("button", { name: "Open Settings" }).click();
   await page.getByLabel("Google Gemini API key").fill("AIza-test");
   await page.getByRole("button", { name: "Save", exact: true }).click();
-  await expect(page.getByText("● Google Gemini key saved")).toBeVisible();
+  await expect(page.getByText("Google Gemini key saved")).toBeVisible();
 });
 
 test("checks English and Bangla, underlines issues, and applies a fix", async ({ page }) => {
@@ -90,12 +90,13 @@ test("settings show the version and the update control", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByLabel("Document text")).toBeVisible();
   await page.keyboard.press("ControlOrMeta+,");
-  await expect(page.getByRole("dialog", { name: "Settings" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "General", level: 1 })).toBeVisible();
+  await page.getByRole("navigation", { name: "Settings sections" }).getByRole("button", { name: /Updates/ }).click();
   await expect(page.getByText(/Matra 0\.\d+\.\d+/)).toBeVisible();
   await page.getByRole("button", { name: "Check for updates" }).click();
   await expect(page.getByText("Updates work in the installed Mac app")).toBeVisible();
   await page.keyboard.press("Escape");
-  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page.getByLabel("Document text")).toBeVisible();
 });
 
 test("narrow window has no horizontal scroll", async ({ page }) => {
@@ -125,11 +126,12 @@ test("works with a free Google Gemini key", async ({ page }) => {
 test("settings switch between Google and Anthropic keys", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "Settings", exact: true }).click();
-  await expect(page.getByRole("radio", { name: "Google Gemini" })).toHaveAttribute("aria-checked", "true");
+  await page.getByRole("navigation", { name: "Settings sections" }).getByRole("button", { name: /AI provider/ }).click();
+  await expect(page.getByRole("radio", { name: /Google Gemini/ })).toHaveAttribute("aria-checked", "true");
   await page.getByLabel("Google Gemini API key").fill("AIza-test");
   await page.getByRole("button", { name: "Save", exact: true }).click();
-  await expect(page.getByText("● Google Gemini key saved")).toBeVisible();
-  await page.getByRole("radio", { name: "Anthropic Claude" }).click();
+  await expect(page.getByText("Google Gemini key saved")).toBeVisible();
+  await page.getByRole("radio", { name: /Anthropic Claude/ }).click();
   await expect(page.getByLabel("Anthropic Claude API key")).toBeVisible();
 });
 
@@ -243,4 +245,22 @@ test("alternative fixes appear as chips and apply on click", async ({ page }) =>
   await page.getByRole("button", { name: /^Check/ }).click();
   await page.locator(".card").getByRole("button", { name: "slips" }).click();
   await expect(page.getByLabel("Document text")).toHaveValue(/a few slips in this paragraph/);
+});
+
+test("selecting text shows a pill that rewrites the selection", async ({ page }) => {
+  await withKey(page);
+  await mockClaude(page, { written: "Matra fixes your writing as you type." });
+  await page.goto("/");
+  const editor = page.getByLabel("Document text");
+  const box = (await editor.boundingBox())!;
+  // Drag-select the first line.
+  await page.mouse.move(box.x + 2, box.y + 12);
+  await page.mouse.down();
+  await page.mouse.move(box.x + 150, box.y + 12, { steps: 5 });
+  await page.mouse.up();
+  const pill = page.getByRole("toolbar", { name: "Rewrite the selected text" });
+  await expect(pill).toBeVisible();
+  await pill.getByRole("button", { name: "Improve" }).click();
+  await expect(page.locator(".writer-output")).toHaveText("Matra fixes your writing as you type.");
+  await expect(page.getByRole("button", { name: "Regenerate" })).toBeVisible();
 });

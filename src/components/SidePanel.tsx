@@ -46,6 +46,7 @@ interface Props {
   onWriterApply(how: "replace" | "insert"): void;
   onWriterDiscard(): void;
   onWriterStop(): void;
+  onRegenerate?(): void;
   compact?: boolean;
 }
 
@@ -116,7 +117,7 @@ function Review(p: Props) {
       <section className="scorecard">
         <ScoreRing score={p.check.score} busy={busy} />
         <div className="scorecard-text">
-          <div className="eyebrow">{busy ? "Checking…" : "Overall score"}</div>
+          <h3 className="panel-h">{busy ? "Checking…" : "Overall score"}</h3>
           {p.check.toneLabels?.length ? (
             <div className="tones">
               {p.check.toneLabels.map((t) => (
@@ -237,7 +238,7 @@ function Write(p: Props) {
     return (
       <div className="writer">
         <div className="writer-head">
-          <span className="eyebrow">{w.label}</span>
+          <h3 className="panel-h">{w.label}</h3>
           {w.streaming ? (
             <button className="btn btn-quiet btn-sm" onClick={p.onWriterStop}>Stop</button>
           ) : (
@@ -267,6 +268,11 @@ function Write(p: Props) {
             >
               <IconCopy /> Copy
             </button>
+            {p.onRegenerate && (
+              <button className="btn btn-quiet" onClick={p.onRegenerate}>
+                <IconSpark /> Regenerate
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -276,13 +282,13 @@ function Write(p: Props) {
   return (
     <div className="writer">
       <section>
-        <div className="eyebrow">Rewrite {target}</div>
+        <h3 className="panel-h">Rewrite {target}</h3>
         <div className="rewrite-grid">
           {REWRITE_MODES.filter((m) => m.group === "style").map((m) => (
             <button key={m.id} className="btn btn-tile" onClick={() => p.onRewrite(m.id)}>{m.label}</button>
           ))}
         </div>
-        <div className="eyebrow eyebrow-gap">Language</div>
+        <h3 className="panel-h panel-h-gap">Language</h3>
         <div className="rewrite-grid">
           {REWRITE_MODES.filter((m) => m.group === "language").map((m) => (
             <button key={m.id} className="btn btn-tile" onClick={() => p.onRewrite(m.id)}>{m.label}</button>
@@ -306,7 +312,7 @@ function Write(p: Props) {
       </section>
 
       <section className="compose">
-        <div className="eyebrow">Write something new</div>
+        <h3 className="panel-h">Write something new</h3>
         <form
           onSubmit={(e) => {
             e.preventDefault();

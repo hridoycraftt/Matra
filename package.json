@@ -1,7 +1,7 @@
 {
   "name": "matra",
   "private": true,
-  "version": "0.3.4",
+  "version": "0.3.5",
   "description": "Matra — an AI writing partner for English and Bangla, for macOS.",
   "type": "module",
   "scripts": {

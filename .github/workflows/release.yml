@@ -63,6 +63,22 @@ jobs:
             cat RELEASE_NOTES.md
             echo "MATRA_NOTES_EOF"
           } >> "$GITHUB_OUTPUT"
+      # Sign with Matra's own certificate when it is configured. A stable signature lets
+      # macOS keep Accessibility permission across updates (ad-hoc signatures change every build).
+      - name: Use the signing certificate if configured
+        env:
+          CERT: ${{ secrets.APPLE_CERTIFICATE }}
+          CERT_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        run: |
+          if [ -n "$CERT" ] && [ -n "$IDENTITY" ]; then
+            echo "APPLE_CERTIFICATE=$CERT" >> "$GITHUB_ENV"
+            echo "APPLE_CERTIFICATE_PASSWORD=$CERT_PASSWORD" >> "$GITHUB_ENV"
+            echo "APPLE_SIGNING_IDENTITY=$IDENTITY" >> "$GITHUB_ENV"
+            echo "Signing with: $IDENTITY"
+          else
+            echo "No signing certificate configured; using an ad-hoc signature."
+          fi
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

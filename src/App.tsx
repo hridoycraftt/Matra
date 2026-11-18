@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Editor, type EditorHandle } from "./components/Editor";
 import { GoalsMenu } from "./components/GoalsMenu";
 import { IconCheck, IconGear, IconPlus, IconTrash, LogoMark } from "./components/Icons";
-import { SettingsSheet } from "./components/SettingsSheet";
+import { SettingsView, usePermission, type SettingsSection } from "./components/SettingsView";
 import { SidePanel } from "./components/SidePanel";
 import { clearApiKey, inApp, onAppEvent, saveApiKey, useApiKey, useSettings } from "./lib/platform";
 import { computeStats, formatMinutes } from "./lib/stats";
@@ -21,7 +21,9 @@ export default function App() {
   });
   const [settings, setSettings] = useSettings();
   const [apiKey] = useApiKey(settings.provider);
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [section, setSection] = useState<SettingsSection | null>(null);
+  const openSettings = (s: SettingsSection = "general") => setSection(s);
+  const trusted = usePermission();
   const [update, setUpdate] = useState<UpdateState>({ status: "idle" });
 
   const editor = useRef<EditorHandle>(null);
@@ -60,6 +62,7 @@ export default function App() {
   const selectionWords = useSelectionWords();
 
   const openDoc = (id: string) => {
+    setSection(null);
     if (id === activeId) return;
     a.reset();
     setActiveId(id);
@@ -67,6 +70,7 @@ export default function App() {
 
   const createDoc = () => {
     const d = newDoc();
+    setSection(null);
     setDocs((all) => [d, ...all]);
     a.reset();
     setActiveId(d.id);
@@ -94,7 +98,7 @@ export default function App() {
         createDoc();
       } else if (e.key === ",") {
         e.preventDefault();
-        setSettingsOpen(true);
+        openSettings();
       } else if (e.key === "Enter" && document.activeElement?.classList.contains("editor-input")) {
         e.preventDefault();
         a.runCheck();
@@ -105,7 +109,7 @@ export default function App() {
   });
 
   // The menu bar item can ask the main window to open Settings.
-  useEffect(() => onAppEvent("matra://open-settings", () => setSettingsOpen(true)), []);
+  useEffect(() => onAppEvent("matra://open-settings", () => openSettings()), []);
   useEffect(() => {
     configureEverywhere(settings);
   }, [settings]);
@@ -114,7 +118,7 @@ export default function App() {
   const sorted = useMemo(() => [...docs].sort((a, b) => b.updatedAt - a.updatedAt), [docs]);
 
   return (
-    <div className={`app${inApp ? " in-app" : ""}`}>
+    <div className={`app${inApp ? " in-app" : ""}${section ? " is-settings" : ""}`}>
       <nav className="sidebar" aria-label="Documents">
         <div className="titlebar-space" data-tauri-drag-region />
         <div className="brand" data-tauri-drag-region>
@@ -141,12 +145,47 @@ export default function App() {
             </li>
           ))}
         </ul>
-        <button className="btn btn-side" onClick={() => setSettingsOpen(true)}>
+        <button
+          className="apps-status"
+          onClick={() => openSettings("apps")}
+          title="Matra in other apps"
+        >
+          <span
+            className={`status-dot${!settings.everywhere || !inApp ? "" : !trusted ? " is-warn" : " is-ok"}`}
+            aria-hidden="true"
+          />
+          <span>
+            Other apps:{" "}
+            {!settings.everywhere ? "Off" : inApp && !trusted ? "Needs permission" : inApp ? "On" : "Mac app only"}
+          </span>
+        </button>
+        <button
+          className={`btn btn-side${section ? " is-active" : ""}`}
+          onClick={() => (section ? setSection(null) : openSettings())}
+          aria-pressed={!!section}
+        >
           <IconGear /> Settings
           {update.status === "available" && <span className="badge">Update</span>}
         </button>
       </nav>
 
+      {section ? (
+        <SettingsView
+          section={section}
+          onSection={setSection}
+          onClose={() => setSection(null)}
+          settings={settings}
+          onSettings={setSettings}
+          onSaveKey={async (provider, k) => {
+            await saveApiKey(provider, k);
+            a.invalidate();
+          }}
+          onClearKey={(provider) => clearApiKey(provider)}
+          update={update}
+          onUpdate={setUpdate}
+        />
+      ) : (
+      <>
       <main className="main">
         <header className="toolbar" data-tauri-drag-region>
           <input
@@ -180,6 +219,7 @@ export default function App() {
               activeId={a.activeIssue}
               onChange={a.onTextChange}
               onCaret={a.onCaret}
+            onSelectionAction={a.rewrite}
               placeholder="Start writing in English or Bangla…"
             />
           </article>
@@ -208,7 +248,7 @@ export default function App() {
         onAcceptAll={a.acceptAll}
         hasKey={!!apiKey}
         providerLabel={PROVIDERS.find((x) => x.id === settings.provider)!.label}
-        onOpenSettings={() => setSettingsOpen(true)}
+        onOpenSettings={() => openSettings("ai")}
         writer={a.writer}
         selectionWords={selectionWords}
         onRewrite={a.rewrite}
@@ -216,21 +256,10 @@ export default function App() {
         onWriterApply={a.applyWriter}
         onWriterDiscard={a.discardWriter}
         onWriterStop={a.stopWriter}
+        onRegenerate={a.regenerate}
       />
-
-      <SettingsSheet
-        open={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
-        settings={settings}
-        onSettings={setSettings}
-        onSaveKey={async (provider, k) => {
-          await saveApiKey(provider, k);
-          a.invalidate();
-        }}
-        onClearKey={(provider) => clearApiKey(provider)}
-        update={update}
-        onUpdate={setUpdate}
-      />
+      </>
+      )}
     </div>
   );
 }

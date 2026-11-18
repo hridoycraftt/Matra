@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Editor, type EditorHandle } from "./components/Editor";
 import { GoalsMenu } from "./components/GoalsMenu";
-import { IconCheck, IconGear, IconX, LogoMark } from "./components/Icons";
+import { IconCheck, IconChevron, IconGear, IconX, LogoMark } from "./components/Icons";
 import { IssueMenu } from "./components/IssueMenu";
 import { SidePanel } from "./components/SidePanel";
 import {
@@ -263,6 +263,7 @@ export default function Panel() {
             activeId={a.activeIssue}
             onChange={a.onTextChange}
             onCaret={a.onCaret}
+            onSelectionAction={a.rewrite}
             compact
           />
         ) : (
@@ -299,6 +300,7 @@ export default function Panel() {
         onWriterApply={a.applyWriter}
         onWriterDiscard={a.discardWriter}
         onWriterStop={a.stopWriter}
+        onRegenerate={a.regenerate}
         compact
       />
 
@@ -363,9 +365,13 @@ function SuggestionCard(p: {
         </span>
         {p.issues.length > 1 && (
           <span className="sugg-nav">
-            <button className="icon-btn" aria-label="Previous suggestion" onClick={() => setIndex((i - 1 + p.issues.length) % p.issues.length)}>‹</button>
+            <button className="icon-btn" aria-label="Previous suggestion" onClick={() => setIndex((i - 1 + p.issues.length) % p.issues.length)}>
+              <IconChevron size={14} dir="left" />
+            </button>
             <span className="muted small">{i + 1}/{p.issues.length}</span>
-            <button className="icon-btn" aria-label="Next suggestion" onClick={() => setIndex((i + 1) % p.issues.length)}>›</button>
+            <button className="icon-btn" aria-label="Next suggestion" onClick={() => setIndex((i + 1) % p.issues.length)}>
+              <IconChevron size={14} dir="right" />
+            </button>
           </span>
         )}
         <button className="btn btn-quiet btn-sm" onClick={p.onExpand}>{issue ? "Open Matra" : "Write with AI"}</button>

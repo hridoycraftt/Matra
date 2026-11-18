@@ -38,6 +38,7 @@ export function useAssistant({ text, setText, goals, settings, apiKey, editor, o
   const checkAbort = useRef<AbortController | null>(null);
   const writerAbort = useRef<AbortController | null>(null);
   const writerRange = useRef<{ start: number; end: number; source: string } | null>(null);
+  const lastRun = useRef<(() => void) | null>(null);
   const lastChecked = useRef("");
 
   /** Clear everything, e.g. when another document or another captured text is opened. */
@@ -196,6 +197,12 @@ export function useAssistant({ text, setText, goals, settings, apiKey, editor, o
     const source = current.slice(start, end);
     if (!source.trim()) return;
     writerRange.current = { start, end, source };
+    lastRun.current = () => {
+      writerRange.current = { start, end, source };
+      startWriter({ kind: "rewrite", label, hasRange: true }, (on, signal) =>
+        streamRewrite(apiKey, { text: source, mode, custom, goals, settings }, on, signal),
+      );
+    };
     const label = mode === "custom" ? "Custom rewrite" : `Rewrite · ${mode.replace(/_/g, " ")}`;
     startWriter({ kind: "rewrite", label, hasRange: true }, (on, signal) =>
       streamRewrite(apiKey, { text: source, mode, custom, goals, settings }, on, signal),
@@ -206,6 +213,7 @@ export function useAssistant({ text, setText, goals, settings, apiKey, editor, o
     const current = textRef.current;
     const sel = editor.current?.selection() ?? { start: current.length, end: current.length };
     writerRange.current = { start: sel.end, end: sel.end, source: "" };
+    lastRun.current = () => compose(prompt);
     startWriter({ kind: "compose", label: "New writing", hasRange: false }, (on, signal) =>
       streamCompose(apiKey, { prompt, context: current, goals, settings }, on, signal),
     );
@@ -256,6 +264,8 @@ export function useAssistant({ text, setText, goals, settings, apiKey, editor, o
     compose,
     applyWriter,
     discardWriter: () => setWriter(null),
+    /** Run the last rewrite or compose again for a different version. */
+    regenerate: () => lastRun.current?.(),
     stopWriter: () => writerAbort.current?.abort(),
     /** Forget the last checked text so the next pause triggers a check (e.g. after adding a key). */
     invalidate: () => {
