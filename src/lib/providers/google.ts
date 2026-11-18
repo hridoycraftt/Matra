@@ -20,7 +20,8 @@ function friendly(err: unknown): MatraAIError {
       return new MatraAIError("Gemini's free-tier limit was reached. Wait a minute, or pick a Flash-Lite model in Settings.", "rate");
     return new MatraAIError(`AI service error (${err.status}). Try again.`, "other");
   }
-  if (err instanceof TypeError) return new MatraAIError("Can't reach the AI service. Check your internet connection.", "network");
+  if (err instanceof TypeError)
+    return new MatraAIError("Can't reach Google Gemini. Check your internet connection, then try again.", "network");
   return new MatraAIError(err instanceof Error ? err.message : "Something went wrong.", "other");
 }
 
