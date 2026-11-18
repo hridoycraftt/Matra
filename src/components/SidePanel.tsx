@@ -30,7 +30,7 @@ interface Props {
   issues: Issue[];
   activeId: string | null;
   onActivate(id: string): void;
-  onAccept(id: string): void;
+  onAccept(id: string, replacement?: string): void;
   onDismiss(id: string): void;
   onAddWord(id: string): void;
   onMute(id: string): void;
@@ -176,6 +176,19 @@ function Review(p: Props) {
               <del>{i.original}</del>
               <span aria-hidden="true">→</span>
               <ins>{i.replacement || "(remove)"}</ins>
+              {i.alternatives?.map((alt) => (
+                <button
+                  key={alt}
+                  className="alt-chip"
+                  title="Use this instead"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    p.onAccept(i.id, alt);
+                  }}
+                >
+                  {alt}
+                </button>
+              ))}
             </div>
             {i.id === p.activeId && <p className="card-why">{i.explanation}</p>}
             <div className="card-actions">

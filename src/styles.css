@@ -852,3 +852,12 @@ html.in-app.is-card .sugg { width: auto; }
 }
 .menu button:hover, .menu button:focus-visible { background: var(--hover); outline: none; }
 .card-actions, .sugg-actions { align-items: center; }
+.alt-chip {
+  border: 1px solid var(--line-2);
+  border-radius: 6px;
+  padding: 2px 8px;
+  background: var(--page);
+  font-size: 13.5px;
+  font-weight: 500;
+}
+.alt-chip:hover { border-color: var(--ink-2); background: var(--hover); }

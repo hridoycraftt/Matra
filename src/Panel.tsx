@@ -218,8 +218,8 @@ export default function Panel() {
         empty={!text.trim()}
         issues={a.issues}
         hasKey={!!apiKey}
-        onAccept={(id) => {
-          a.accept(id);
+        onAccept={(id, replacement) => {
+          a.accept(id, replacement);
           focusSource();
         }}
         onDismiss={a.dismiss}
@@ -318,7 +318,7 @@ function SuggestionCard(p: {
   empty: boolean;
   issues: Issue[];
   hasKey: boolean;
-  onAccept(id: string): void;
+  onAccept(id: string, replacement?: string): void;
   onDismiss(id: string): void;
   onAddWord(id: string): void;
   onMute(id: string): void;
@@ -386,6 +386,11 @@ function SuggestionCard(p: {
             <button className={`sugg-chip sugg-chip-${issue.category}`} onClick={() => p.onAccept(issue.id)} title="Accept">
               {issue.replacement || "(remove)"}
             </button>
+            {issue.alternatives?.map((alt) => (
+              <button key={alt} className="alt-chip" onClick={() => p.onAccept(issue.id, alt)} title="Use this instead">
+                {alt}
+              </button>
+            ))}
           </div>
           <p className="sugg-why">{issue.explanation}</p>
           <div className="sugg-actions">

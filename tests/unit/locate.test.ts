@@ -72,3 +72,11 @@ describe("remapIssues word edges", () => {
     expect(remapIssues(text, "I has a", issues)).toHaveLength(1);
   });
 });
+
+describe("applyIssue with an alternative", () => {
+  it("uses the chosen alternative instead of the main replacement", () => {
+    const text = "It was a very big house.";
+    const issues = locateIssues(text, [{ ...raw("very big", "huge"), alternatives: ["enormous", "vast"] }]);
+    expect(applyIssue(text, issues, issues[0].id, "enormous").text).toBe("It was a enormous house.");
+  });
+});

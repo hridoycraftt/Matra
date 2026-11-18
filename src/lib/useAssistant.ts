@@ -119,8 +119,9 @@ export function useAssistant({ text, setText, goals, settings, apiKey, editor, o
     setText(next);
   };
 
-  const accept = (id: string) => {
-    const r = applyIssue(textRef.current, issues, id);
+  /** Apply a suggestion, optionally with one of its alternative fixes. */
+  const accept = (id: string, replacement?: string) => {
+    const r = applyIssue(textRef.current, issues, id, replacement);
     commit(r.text, r.issues);
     setActiveIssue(null);
   };

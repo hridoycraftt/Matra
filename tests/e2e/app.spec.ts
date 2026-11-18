@@ -217,3 +217,30 @@ test("⋯ menu turns off a kind of suggestion and remembers it", async ({ page }
   // The same model answer comes back, but muted and rejected suggestions stay hidden.
   await expect(page.locator(".card")).toHaveCount(3);
 });
+
+test("alternative fixes appear as chips and apply on click", async ({ page }) => {
+  await withKey(page);
+  await mockClaude(page, {
+    check: {
+      language: "en",
+      score: 80,
+      tone_labels: [],
+      tone_summary: "",
+      issues: [
+        {
+          category: "engagement",
+          original: "mistakes",
+          replacement: "errors",
+          alternatives: ["slips", "typos"],
+          prefix: "a few ",
+          title: "Word choice",
+          explanation: "A more precise word.",
+        },
+      ],
+    },
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: /^Check/ }).click();
+  await page.locator(".card").getByRole("button", { name: "slips" }).click();
+  await expect(page.getByLabel("Document text")).toHaveValue(/a few slips in this paragraph/);
+});

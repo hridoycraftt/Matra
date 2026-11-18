@@ -12,6 +12,8 @@ export interface RawIssue {
   category: Category;
   original: string;
   replacement: string;
+  /** Other good fixes for the same span, best first (may be empty). */
+  alternatives?: string[];
   prefix: string;
   title: string;
   explanation: string;

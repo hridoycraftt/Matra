@@ -45,8 +45,14 @@ export function locateIssues(text: string, raw: RawIssue[]): Issue[] {
 }
 
 /** Apply one issue's replacement and shift every other issue. */
-export function applyIssue(text: string, issues: Issue[], id: string): { text: string; issues: Issue[] } {
-  const target = issues.find((i) => i.id === id);
+export function applyIssue(
+  text: string,
+  issues: Issue[],
+  id: string,
+  replacement?: string,
+): { text: string; issues: Issue[] } {
+  const found = issues.find((i) => i.id === id);
+  const target = found && replacement !== undefined ? { ...found, replacement } : found;
   if (!target || text.slice(target.start, target.end) !== target.original) {
     return { text, issues: issues.filter((i) => i.id !== id) };
   }

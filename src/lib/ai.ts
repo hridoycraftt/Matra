@@ -48,6 +48,7 @@ Rules for each issue:
 - "original" must be copied EXACTLY from the text (same characters, same case, same spacing) and be as short as possible: the word or phrase that changes, not the whole sentence, unless the whole sentence is rewritten for clarity.
 - "prefix" is the 1–30 characters that appear immediately before "original" in the text (copy exactly; empty string if original starts the text). It disambiguates repeated words.
 - "replacement" is the corrected text for exactly that span.
+- "alternatives": up to 2 other genuinely different good replacements for the same span (e.g. other word choices or phrasings), best first. Use [] for plain spelling and grammar fixes that have one right answer.
 - "title" is a 1–4 word label (e.g. "Spelling", "Subject–verb agreement", "বানান", "Wordy phrase").
 - "explanation" is one short sentence explaining why.
 - Romanized Bangla (Banglish, e.g. "ami kal jabo") is not an error by itself; only flag it under delivery when the goals are formal, suggesting Bangla script.
@@ -73,11 +74,12 @@ const CHECK_SCHEMA = {
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["category", "original", "replacement", "prefix", "title", "explanation"],
+        required: ["category", "original", "replacement", "alternatives", "prefix", "title", "explanation"],
         properties: {
           category: { type: "string", enum: ["correctness", "clarity", "engagement", "delivery"] },
           original: { type: "string" },
           replacement: { type: "string" },
+          alternatives: { type: "array", items: { type: "string" } },
           prefix: { type: "string" },
           title: { type: "string" },
           explanation: { type: "string" },
@@ -139,6 +141,11 @@ export async function checkText(
       !muted.has(i.title.trim().toLowerCase()) &&
       !rejected.has(rejectKey(i.original, i.replacement)),
   );
+  for (const i of parsed.issues) {
+    i.alternatives = [...new Set((i.alternatives ?? []).map((x) => x.trim()))]
+      .filter((x) => x && x !== i.replacement.trim() && x !== i.original.trim())
+      .slice(0, 2);
+  }
   parsed.score = Math.max(0, Math.min(100, Math.round(Number(parsed.score) || 0)));
   parsed.tone_labels = (parsed.tone_labels ?? []).slice(0, 3);
   return parsed;
