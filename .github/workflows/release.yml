@@ -7,7 +7,7 @@ name: Release
 on:
   push:
     branches: [main]
-    paths: ["package.json", ".github/workflows/release.yml"]
+    paths: ["package.json"]
   workflow_dispatch:
 
 permissions:
@@ -56,6 +56,13 @@ jobs:
           workspaces: "./src-tauri -> target"
       - run: npm ci
       - run: npm test
+      - id: notes
+        run: |
+          {
+            echo "body<<MATRA_NOTES_EOF"
+            cat RELEASE_NOTES.md
+            echo "MATRA_NOTES_EOF"
+          } >> "$GITHUB_OUTPUT"
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -64,7 +71,7 @@ jobs:
         with:
           tagName: v__VERSION__
           releaseName: "Matra v__VERSION__"
-          releaseBody: "Installed copies of Matra update from Settings → Updates."
+          releaseBody: ${{ steps.notes.outputs.body }}
           releaseCommitish: ${{ github.sha }}
           releaseDraft: false
           prerelease: false
