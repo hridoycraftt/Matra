@@ -1,7 +1,5 @@
-Matra 0.3.1 — mistakes are now underlined right inside other apps.
-• Pink, blue, green and amber lines appear under the words to fix, in Mail, Notes, Slack, Chrome and more.
-• Move the cursor onto an underlined word and the suggestion card opens right next to it.
-• Drag the Matra badge anywhere on a text box; it stays there for that app (reset in Settings).
-• Personal dictionary: "Add to dictionary" on any spelling suggestion, or manage words in Settings.
-• Style guide: write your own rules in Settings (e.g. "email, not e-mail") and Matra checks them everywhere.
-Some apps don't report where their words are on screen; there Matra still shows the badge and the card.
+Matra 0.3.2 — a friendlier helper on every text box.
+• A small pink dot now sits quietly at the edge of the text box you're in. It turns into the number of suggestions when Matra finds something.
+• Hover the dot (or click it) to open a pill of quick actions: turn Matra off in this app, Write with AI, and open Matra.
+• Opening Matra on an empty text box shows a small "Start writing" card instead of a big empty panel.
+• Still here from 0.3: underlines inside other apps, the card next to the word under your cursor, a draggable badge, personal dictionary and style guide.

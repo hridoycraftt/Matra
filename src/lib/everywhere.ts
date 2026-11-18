@@ -55,16 +55,18 @@ export const setUnderlines = (marks: { id: string; start: number; len: number; c
   inApp ? invoke("set_underlines", { underlines: marks }) : Promise.resolve();
 
 /** Ask the panel window (the checker) to switch mode and show itself. Used by the badge. */
-export async function openPanel(mode: PanelMode) {
+export async function openPanel(mode: PanelMode | "write") {
   if (!inApp) return;
   const { emitTo } = await import("@tauri-apps/api/event");
   await emitTo("panel", "matra://mode", mode);
-  await showPanel(true, mode);
+  // The panel decides its final size (an empty field gets the small card) and shows itself.
 }
 
 /** Badge drag: start, then finish to get [app, dx, dy] for the spot the user chose. */
 export const badgeDrag = (start: boolean) =>
   inApp ? invoke<[string, number, number] | null>("badge_drag", { start }) : Promise.resolve(null);
+
+export const badgeExpand = (expanded: boolean) => (inApp ? invoke("badge_expand", { expanded }) : Promise.resolve());
 
 /** Show or hide the badge on the field (it only appears after the user has typed). */
 export const setBadge = (visible: boolean) => (inApp ? invoke("set_badge", { visible }) : Promise.resolve());

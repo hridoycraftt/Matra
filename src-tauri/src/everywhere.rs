@@ -51,6 +51,8 @@ pub struct State {
     pub badge_wanted: AtomicBool,
     /// The user is dragging the badge: don't move it under their pointer.
     pub badge_dragging: AtomicBool,
+    /// The badge is showing its pill of actions.
+    pub badge_expanded: AtomicBool,
     /// Where the user dragged the badge, per app: offset from the field's top-left corner.
     pub badge_offsets: Mutex<HashMap<String, (f64, f64)>>,
     pub ignored_apps: Mutex<Vec<String>>,
@@ -73,6 +75,8 @@ pub const BADGE: &str = "badge";
 pub const OVERLAY: &str = "underlines";
 pub const PANEL: &str = "panel";
 const BADGE_SIZE: f64 = 30.0;
+/// Width of the badge when it opens into a pill of actions (it grows to the left).
+const BADGE_PILL_WIDTH: f64 = 112.0;
 
 pub fn configure(state: &State, cfg: Config) {
     state.enabled.store(cfg.enabled, Ordering::Relaxed);
@@ -96,7 +100,10 @@ pub fn place_badge<R: Runtime>(app: &AppHandle<R>, f: &FieldInfo) {
         return;
     }
     let r = badge_rect(&state, f);
-    let _ = badge.set_position(LogicalPosition::new(r.x.max(0.0), r.y.max(0.0)));
+    let expanded = state.badge_expanded.load(Ordering::Relaxed);
+    let (w, x) = if expanded { (BADGE_PILL_WIDTH, r.x - (BADGE_PILL_WIDTH - BADGE_SIZE)) } else { (BADGE_SIZE, r.x) };
+    let _ = badge.set_size(tauri::LogicalSize::new(w, BADGE_SIZE));
+    let _ = badge.set_position(LogicalPosition::new(x.max(0.0), r.y.max(0.0)));
     let want = state.badge_wanted.load(Ordering::Relaxed);
     let shown = badge.is_visible().unwrap_or(false);
     if want && !shown {
@@ -223,7 +230,9 @@ pub fn badge_drag<R: Runtime>(app: &AppHandle<R>, start: bool) -> Option<(String
     let scale = badge.scale_factor().ok()?;
     let pos = badge.outer_position().ok()?.to_logical::<f64>(scale);
     let f = state.last.lock().unwrap().clone()?;
-    let (dx, dy) = (pos.x - f.x, pos.y - f.y);
+    // Offsets are stored for the collapsed dot, which sits at the pill's right end.
+    let extra = if state.badge_expanded.load(Ordering::Relaxed) { BADGE_PILL_WIDTH - BADGE_SIZE } else { 0.0 };
+    let (dx, dy) = (pos.x + extra - f.x, pos.y - f.y);
     state.badge_offsets.lock().unwrap().insert(f.app.to_lowercase(), (dx, dy));
     Some((f.app, dx, dy))
 }

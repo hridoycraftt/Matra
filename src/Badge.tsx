@@ -1,24 +1,36 @@
 import { useEffect, useRef, useState } from "react";
-import { badgeDrag, openPanel, type BadgeState } from "./lib/everywhere";
+import { IconSpark } from "./components/Icons";
+import { badgeDrag, badgeExpand, currentField, openPanel, type BadgeState } from "./lib/everywhere";
 import { inApp, onAppEvent } from "./lib/platform";
 import { loadSettings, saveSettings } from "./lib/storage";
 
 const DRAG_THRESHOLD = 4;
 
 /**
- * The small floating button on other apps' text fields. Click it to open Matra;
- * drag it anywhere and Matra keeps it there for that app.
+ * The floating helper on other apps' text fields: a quiet dot that shows Matra is
+ * there, a count when there are suggestions, and on hover a pill of quick actions.
+ * Drag it anywhere; Matra keeps it there for that app.
  */
 export default function Badge() {
-  const [state, setState] = useState<BadgeState>(inApp ? { status: "idle" } : { status: "issues", count: 3 });
+  const preview = !inApp;
+  const [state, setState] = useState<BadgeState>(preview ? { status: "issues", count: 3 } : { status: "idle" });
+  const [expanded, setExpanded] = useState(preview && new URLSearchParams(location.search).has("open"));
   const [dragging, setDragging] = useState(false);
   const down = useRef<{ x: number; y: number } | null>(null);
   const dragged = useRef(false);
+  const collapseTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   useEffect(() => {
     document.documentElement.classList.add("is-badge");
     return onAppEvent<BadgeState>("matra://badge", setState);
   }, []);
+
+  const expand = (on: boolean) => {
+    clearTimeout(collapseTimer.current);
+    if (on === expanded) return;
+    setExpanded(on);
+    badgeExpand(on);
+  };
 
   const startDrag = async () => {
     dragged.current = true;
@@ -47,49 +59,93 @@ export default function Badge() {
     await win.startDragging();
   };
 
-  const label =
+  const turnOffHere = async () => {
+    const f = await currentField();
+    if (!f) return;
+    const s = loadSettings();
+    saveSettings({ ...s, ignoredApps: [...new Set([...s.ignoredApps, f.app])] });
+    expand(false);
+  };
+
+  const openMatra = () => {
+    expand(false);
+    openPanel(state.status === "issues" ? "card" : "full");
+  };
+
+  const dotLabel =
     state.status === "issues"
-      ? `${state.count} suggestion${state.count === 1 ? "" : "s"} — click to open, drag to move`
+      ? `${state.count} suggestion${state.count === 1 ? "" : "s"}`
       : state.status === "checking"
-        ? "Matra is checking"
+        ? "Matra is checking…"
         : state.status === "clean"
-          ? "No suggestions"
-          : "Open Matra — drag to move";
+          ? "Looks good"
+          : "Matra";
 
   return (
-    <button
-      className={`badge-btn badge-${state.status}${dragging ? " is-dragging" : ""}`}
-      aria-label={label}
-      title={label}
-      onPointerDown={(e) => {
-        down.current = { x: e.clientX, y: e.clientY };
-        dragged.current = false;
-      }}
-      onPointerMove={(e) => {
-        const d = down.current;
-        if (!d || dragged.current || !(e.buttons & 1)) return;
-        if (Math.hypot(e.clientX - d.x, e.clientY - d.y) > DRAG_THRESHOLD) startDrag();
-      }}
-      onPointerUp={() => {
-        down.current = null;
-      }}
-      onClick={() => {
-        if (dragged.current) return; // a drag is not a click
-        openPanel(state.status === "issues" ? "card" : "full");
+    <div
+      className={`badge-wrap${expanded ? " is-open" : ""}`}
+      onPointerEnter={() => !dragging && expand(true)}
+      onPointerLeave={() => {
+        collapseTimer.current = setTimeout(() => expand(false), 450);
       }}
     >
-      {state.status === "issues" ? (
-        <span className="badge-count">{state.count > 99 ? "99+" : state.count}</span>
-      ) : state.status === "clean" ? (
-        <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M4.5 12.5l4.5 4.5L19.5 6.5" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      ) : (
-        <svg width="16" height="16" viewBox="0 0 64 64" aria-hidden="true">
-          <path d="M19 50V24l13 16 13-16v26" fill="none" stroke="currentColor" strokeWidth="7" strokeLinejoin="bevel" />
-          <rect x="12" y="13" width="40" height="7" rx="2" fill="#ea4c89" />
-        </svg>
+      {expanded && (
+        <div className="badge-actions" role="toolbar" aria-label="Matra quick actions">
+          <button className="badge-action" aria-label="Turn off Matra in this app" title="Turn off in this app" onClick={turnOffHere}>
+            <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 3v8M6.3 6.8a8 8 0 1 0 11.4 0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+          </button>
+          <button
+            className="badge-action"
+            aria-label="Write with AI"
+            title="Write with AI"
+            onClick={() => {
+              expand(false);
+              openPanel("write");
+            }}
+          >
+            <IconSpark size={14} />
+          </button>
+        </div>
       )}
-    </button>
+      <button
+        className={`badge-btn badge-${state.status}${dragging ? " is-dragging" : ""}${expanded ? " is-big" : ""}`}
+        aria-label={`${dotLabel} — open Matra (drag to move)`}
+        title={expanded ? "Open Matra · drag to move" : dotLabel}
+        onPointerDown={(e) => {
+          down.current = { x: e.clientX, y: e.clientY };
+          dragged.current = false;
+        }}
+        onPointerMove={(e) => {
+          const d = down.current;
+          if (!d || dragged.current || !(e.buttons & 1)) return;
+          if (Math.hypot(e.clientX - d.x, e.clientY - d.y) > DRAG_THRESHOLD) startDrag();
+        }}
+        onPointerUp={() => {
+          down.current = null;
+        }}
+        onClick={() => {
+          if (dragged.current) return; // a drag is not a click
+          if (!expanded && state.status !== "issues") return expand(true); // first tap shows the actions
+          openMatra();
+        }}
+      >
+        {state.status === "issues" ? (
+          <span className="badge-count">{state.count > 99 ? "99+" : state.count}</span>
+        ) : state.status === "clean" && !expanded ? (
+          <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M4.5 12.5l4.5 4.5L19.5 6.5" fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        ) : expanded || state.status === "checking" ? (
+          <svg width="15" height="15" viewBox="0 0 64 64" aria-hidden="true">
+            <path d="M19 50V24l13 16 13-16v26" fill="none" stroke="currentColor" strokeWidth="7" strokeLinejoin="bevel" />
+            <rect x="12" y="13" width="40" height="7" rx="2" fill="#ea4c89" />
+          </svg>
+        ) : (
+          <span className="badge-dot" aria-hidden="true" />
+        )}
+      </button>
+    </div>
   );
 }

@@ -154,9 +154,15 @@ export default function Panel() {
         sendBadge({ status: "idle" });
         setBadge(false);
       }),
-      onAppEvent<PanelMode>("matra://mode", (m) => {
-        setMode(m);
-        setShown(true);
+      onAppEvent<PanelMode | "write">("matra://mode", (m) => {
+        if (m === "write") {
+          a.setTab("write");
+          open("full", true);
+        } else if (m === "full" && !textRef.current.trim()) {
+          open("card", true); // nothing written yet: a small "start writing" card, not a big empty panel
+        } else {
+          open(m, true);
+        }
       }),
     ];
     return () => offs.forEach((off) => off());
@@ -171,18 +177,13 @@ export default function Panel() {
     else if (status === "done") sendBadge(a.issues.length ? { status: "issues", count: a.issues.length } : { status: "clean" });
     else sendBadge({ status: "idle" });
 
-    const active = typed.current && textRef.current.trim().length > 0;
-    if (!active) {
-      setBadge(false);
-      return;
-    }
+    // A quiet dot whenever a text box is focused; it grows into a count or a check mark.
+    setBadge(!!field);
     if (status === "done" && a.issues.length === 0) {
-      setBadge(true);
-      const t = setTimeout(() => setBadge(false), 2500); // a quick "all good", then out of the way
+      const t = setTimeout(() => sendBadge({ status: "idle" }), 2500); // brief "all good", then back to the dot
       return () => clearTimeout(t);
     }
-    setBadge(status === "checking" || a.issues.length > 0 || status === "error");
-  }, [a.check.status, a.issues.length]);
+  }, [a.check.status, a.issues.length, field]);
 
   // Open the small card by itself when a check finds something new.
   useEffect(() => {
@@ -211,6 +212,7 @@ export default function Panel() {
     return (
       <SuggestionCard
         app={field?.app ?? "this app"}
+        empty={!text.trim()}
         issues={a.issues}
         hasKey={!!apiKey}
         onAccept={(id) => {
@@ -219,7 +221,10 @@ export default function Panel() {
         }}
         onDismiss={a.dismiss}
         onAddWord={a.addWord}
-        onExpand={() => open("full", true)}
+        onExpand={() => {
+          if (!a.issues.length) a.setTab("write");
+          open("full", true);
+        }}
         onClose={close}
         focusId={focusId}
         onResize={(h) => shown && showPanel(false, "card", h, anchor.current)}
@@ -303,6 +308,7 @@ export default function Panel() {
 /** One suggestion at a time, small, next to the field — the card that opens by itself. */
 function SuggestionCard(p: {
   app: string;
+  empty: boolean;
   issues: Issue[];
   hasKey: boolean;
   onAccept(id: string): void;
@@ -344,7 +350,7 @@ function SuggestionCard(p: {
       <header className="sugg-head" data-tauri-drag-region>
         <LogoMark size={16} />
         <span className="sugg-count" data-tauri-drag-region>
-          {issue ? `${p.issues.length} suggestion${p.issues.length === 1 ? "" : "s"}` : "Matra"}
+          {issue ? `${p.issues.length} suggestion${p.issues.length === 1 ? "" : "s"}` : ""}
         </span>
         {p.issues.length > 1 && (
           <span className="sugg-nav">
@@ -353,7 +359,7 @@ function SuggestionCard(p: {
             <button className="icon-btn" aria-label="Next suggestion" onClick={() => setIndex((i + 1) % p.issues.length)}>›</button>
           </span>
         )}
-        <button className="btn btn-quiet btn-sm" onClick={p.onExpand}>Open Matra</button>
+        <button className="btn btn-quiet btn-sm" onClick={p.onExpand}>{issue ? "Open Matra" : "Write with AI"}</button>
         <button className="icon-btn" aria-label="Close (Esc)" onClick={p.onClose}><IconX /></button>
       </header>
       {!p.hasKey ? (
@@ -381,8 +387,20 @@ function SuggestionCard(p: {
             )}
           </div>
         </div>
+      ) : p.empty ? (
+        <div className="sugg-hero">
+          <LogoMark size={40} />
+          <strong>Start writing — Matra checks as you type.</strong>
+          <span className="muted small">Suggestions will appear here.</span>
+        </div>
       ) : (
-        <p className="sugg-body muted small">Looking good — no suggestions.</p>
+        <div className="sugg-hero">
+          <span className="sugg-ok" aria-hidden="true">
+            <IconCheck size={18} />
+          </span>
+          <strong>Looking good</strong>
+          <span className="muted small">No suggestions in {p.app} right now.</span>
+        </div>
       )}
     </div>
   );
