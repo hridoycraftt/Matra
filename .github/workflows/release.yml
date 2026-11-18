@@ -43,7 +43,7 @@ jobs:
     if: needs.version.outputs.exists == 'false'
     # GitHub's Apple-silicon runners are often short of capacity; the Intel runner builds
     # the same universal app (both architectures are cross-compiled).
-    runs-on: macos-15-intel
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -121,7 +121,7 @@ jobs:
     # cancels the job; then try once more on the other kind.
     needs: [version, release]
     if: always() && needs.version.outputs.exists == 'false' && needs.release.result != 'success' && needs.release.result != 'skipped'
-    runs-on: macos-15
+    runs-on: macos-15-intel
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
