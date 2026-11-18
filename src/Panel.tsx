@@ -1,8 +1,9 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Editor, type EditorHandle } from "./components/Editor";
 import { GoalsMenu } from "./components/GoalsMenu";
-import { IconArrowRight, IconCheck, IconChevron, IconGear, IconX, LogoMark } from "./components/Icons";
+import { IconArrowRight, IconCheck, IconChevron, IconGear, IconSpark, IconTrash, IconX, LogoMark } from "./components/Icons";
 import { IssueMenu } from "./components/IssueMenu";
+import { changedParts } from "./lib/diff";
 import { SidePanel } from "./components/SidePanel";
 import {
   configureEverywhere,
@@ -13,6 +14,7 @@ import {
   sendBadge,
   setBadge,
   setCaret,
+  pauseApp,
   setUnderlines,
   showPanel,
   writeField,
@@ -24,7 +26,7 @@ import { inApp, onAppEvent, useApiKey, useSettings } from "./lib/platform";
 import { CATEGORIES, DEFAULT_GOALS, PROVIDERS, type Goals, type Issue } from "./lib/types";
 import { useAssistant, useSelectionWords } from "./lib/useAssistant";
 import { expandSnippet } from "./lib/snippets";
-import { streamRewrite, friendlyError } from "./lib/ai";
+import { streamCompose, streamRewrite, friendlyError } from "./lib/ai";
 import { SelectionPill } from "./components/SelectionPill";
 import type { RewriteMode } from "./lib/types";
 import { useUnderlineStyle } from "./lib/useUnderlineStyle";
@@ -61,13 +63,19 @@ export default function Panel() {
   const [goals, setGoals] = useState<Goals>(loadGoals);
   const [field, setField] = useState<FieldInfo | null>(inApp ? null : PREVIEW_FIELD);
   const [text, setText] = useState(inApp ? "" : PREVIEW_FIELD.text);
-  const [mode, setMode] = useState<PanelMode>(() =>
-    !inApp && new URLSearchParams(location.search).get("mode") === "card" ? "card" : "full",
-  );
+  const [mode, setMode] = useState<PanelMode>(() => {
+    const m = !inApp ? new URLSearchParams(location.search).get("mode") : null;
+    return m === "card" || m === "word" ? m : "full";
+  });
   const [shown, setShown] = useState(!inApp);
   const [writeNote, setWriteNote] = useState<string | null>(null);
   const [focusId, setFocusId] = useState<string | null>(null);
   /** The badge's bulb opens improvements, its red count opens corrections. */
+  /** Small cards opened from the badge: Write with AI, or "turn off here". */
+  const [extra, setExtra] = useState<"ai" | "turnoff" | null>(() => {
+    const m = !inApp ? new URLSearchParams(location.search).get("card") : null;
+    return m === "ai" || m === "turnoff" ? m : null;
+  });
   const [group, setGroup] = useState<"all" | "corrections" | "improvements">(() => {
     const g = !inApp ? new URLSearchParams(location.search).get("group") : null;
     return g === "corrections" || g === "improvements" ? g : "all";
@@ -130,7 +138,7 @@ export default function Panel() {
   const open = (m: PanelMode, focus: boolean, at?: ScreenRect) => {
     setMode(m);
     setShown(true);
-    anchor.current = m === "card" ? at : undefined;
+    anchor.current = m === "card" || m === "word" ? at : undefined;
     showPanel(focus, m, undefined, anchor.current);
   };
 
@@ -141,11 +149,18 @@ export default function Panel() {
 
   // The caret moved onto an underlined word: open the card right there, like clicking an underline.
   useEffect(
-    () =>
-      onAppEvent<[string, [number, number, number, number] | null]>("matra://caret-issue", ([id, r]) => {
+    () => {
+      const show = ([id, r]: [string, [number, number, number, number] | null]) => {
         setFocusId(id);
-        open("card", false, r ? { x: r[0], y: r[1], w: r[2], h: r[3] } : undefined);
-      }),
+        open("word", false, r ? { x: r[0], y: r[1], w: r[2], h: r[3] } : undefined);
+      };
+      const offs = [
+        onAppEvent<[string, [number, number, number, number] | null]>("matra://caret-issue", show),
+        onAppEvent<[string, [number, number, number, number] | null]>("matra://hover-issue", show),
+      ];
+      return () => offs.forEach((off) => off());
+    },
+    // Caret on, or mouse resting on, an underlined word: the small card for that word, right under it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
@@ -207,8 +222,13 @@ export default function Panel() {
         sendBadge({ status: "idle" });
         setBadge(false);
       }),
-      onAppEvent<PanelMode | "write" | "corrections" | "improvements">("matra://mode", (m) => {
-        if (m === "corrections" || m === "improvements") {
+      onAppEvent<PanelMode | "write" | "corrections" | "improvements" | "ai" | "turnoff">("matra://mode", (m) => {
+        setExtra(null);
+        if (m === "ai" || m === "turnoff") {
+          setSelection(null);
+          setExtra(m);
+          open("card", true);
+        } else if (m === "corrections" || m === "improvements") {
           setGroup(m);
           open("card", true);
         } else if (m === "write") {
@@ -270,6 +290,94 @@ export default function Panel() {
   }, []);
 
   const providerLabel = PROVIDERS.find((x) => x.id === settings.provider)!.label;
+
+  if (mode === "card" && extra === "turnoff") {
+    const app = field?.app ?? "this app";
+    return (
+      <SmallCard onResize={(h) => showPanel(false, "card", h, anchor.current)} label={`Turn off Matra for ${app}`}>
+        <div className="turnoff">
+          <button className="icon-btn turnoff-x" aria-label="Close" onClick={() => { setExtra(null); close(); }}><IconX /></button>
+          <h2>Turn off Matra for {app}?</h2>
+          <button className="btn btn-primary btn-block" onClick={() => { pauseApp(app); setExtra(null); setShown(false); }}>
+            Yes, for this session
+          </button>
+          <button
+            className="btn btn-primary btn-block"
+            onClick={() => {
+              setSettings({ ...settings, ignoredApps: [...new Set([...settings.ignoredApps, app])] });
+              setExtra(null);
+              close();
+            }}
+          >
+            Yes, from now on
+          </button>
+          <button className="btn btn-block turnoff-no" onClick={() => { setExtra(null); close(); }}>
+            No, don't turn it off
+          </button>
+        </div>
+      </SmallCard>
+    );
+  }
+
+  if (mode === "card" && extra === "ai") {
+    return (
+      <AICard
+        hasText={!!text.trim()}
+        voiceSet={!!settings.voice.profile}
+        onSetVoice={() => openMain(true, "voice")}
+        onRun={(prompt, on, signal) =>
+          prompt.kind === "rewrite"
+            ? streamRewrite(apiKey, { text, mode: prompt.mode, goals, settings }, on, signal)
+            : streamCompose(apiKey, { prompt: prompt.text, context: text, goals, settings }, on, signal)
+        }
+        onInsert={(out) => {
+          const at = field?.sel_start ?? text.length;
+          const before = text.slice(0, at);
+          const gap = before && !/\s$/.test(before) ? " " : "";
+          writeField(before + gap + out + text.slice(at)).then(() => setCaret(at + gap.length + out.length));
+          setExtra(null);
+          close();
+        }}
+        onReplace={(out) => {
+          writeField(out);
+          setExtra(null);
+          close();
+        }}
+        onClose={() => {
+          setExtra(null);
+          close();
+        }}
+        onResize={(h) => showPanel(false, "card", h, anchor.current)}
+      />
+    );
+  }
+
+  if (mode === "word") {
+    const issue = a.issues.find((i) => i.id === focusId) ?? (!inApp ? a.issues[0] : undefined);
+    return (
+      <WordCard
+        issue={issue}
+        onAccept={(replacement) => {
+          if (!issue) return;
+          a.accept(issue.id, replacement);
+          focusSource();
+          close();
+        }}
+        onDismiss={() => {
+          if (issue) a.dismiss(issue.id);
+          close();
+        }}
+        onAddWord={() => issue && a.addWord(issue.id)}
+        onMute={() => issue && a.mute(issue.id)}
+        onReport={() => issue && a.report(issue.id)}
+        onSeeMore={() => {
+          setGroup("all");
+          open("card", true, anchor.current);
+        }}
+        onResize={(h) => showPanel(false, "word", h, anchor.current)}
+      />
+    );
+  }
 
   if (mode === "card" && selection) {
     return (
@@ -630,5 +738,226 @@ function SelectionCard(p: {
         </>
       )}
     </div>
+  );
+}
+
+/** The small card for one underlined word, like Grammarly's: the fix with the changed part
+ * highlighted (click it to apply), Dismiss, and a way into the full list. */
+function WordCard(p: {
+  issue: Issue | undefined;
+  onAccept(replacement?: string): void;
+  onDismiss(): void;
+  onAddWord(): void;
+  onMute(): void;
+  onReport(): void;
+  onSeeMore(): void;
+  onResize(height: number): void;
+}) {
+  const root = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const el = root.current;
+    if (!el) return;
+    const report = () => p.onResize(Math.ceil(el.getBoundingClientRect().height));
+    report();
+    const ro = new ResizeObserver(report);
+    ro.observe(el);
+    return () => ro.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    document.documentElement.classList.add("is-card");
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && p.onDismiss();
+    window.addEventListener("keydown", esc);
+    return () => {
+      document.documentElement.classList.remove("is-card");
+      window.removeEventListener("keydown", esc);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const i = p.issue;
+  return (
+    <div className="word-card" ref={root} role="dialog" aria-label="Suggestion">
+      {i ? (
+        <>
+          <div className="word-kind">
+            <i className={`dot dot-${i.category}`} aria-hidden="true" />
+            {i.title}
+          </div>
+          <button className={`word-fix word-fix-${i.category}`} onClick={() => p.onAccept()} title="Apply this fix">
+            {i.replacement ? (
+              changedParts(i.original, i.replacement).map((part, n) =>
+                part.changed ? <mark key={n}>{part.text}</mark> : <span key={n}>{part.text}</span>,
+              )
+            ) : (
+              <span>
+                Remove <del>{i.original}</del>
+              </span>
+            )}
+          </button>
+          {i.alternatives && i.alternatives.length > 0 && (
+            <div className="word-alts">
+              {i.alternatives.map((alt) => (
+                <button key={alt} className="alt-chip" onClick={() => p.onAccept(alt)}>{alt}</button>
+              ))}
+            </div>
+          )}
+          {i.explanation && <p className="word-why">{i.explanation}</p>}
+          <div className="word-rows">
+            <button className="word-row" onClick={p.onDismiss}>
+              <IconTrash size={16} /> Dismiss
+            </button>
+            <button className="word-row" onClick={p.onSeeMore}>
+              <LogoMark size={16} /> See more in Matra
+            </button>
+          </div>
+        </>
+      ) : (
+        <p className="word-why">This suggestion was already handled.</p>
+      )}
+    </div>
+  );
+}
+
+/** A small floating card that sizes its window to its content. */
+function SmallCard({ children, onResize, label }: { children: React.ReactNode; onResize(h: number): void; label: string }) {
+  const root = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const el = root.current;
+    if (!el) return;
+    const report = () => onResize(Math.ceil(el.getBoundingClientRect().height));
+    report();
+    const ro = new ResizeObserver(report);
+    ro.observe(el);
+    document.documentElement.classList.add("is-card");
+    return () => {
+      ro.disconnect();
+      document.documentElement.classList.remove("is-card");
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return (
+    <div className="sugg small-card" ref={root} role="dialog" aria-label={label}>
+      {children}
+    </div>
+  );
+}
+
+type AIPrompt = { kind: "rewrite"; mode: RewriteMode; label: string } | { kind: "compose"; text: string; label: string };
+
+/** The bulb's card: set your voice, ideas to start from, or say what to write. */
+function AICard(p: {
+  hasText: boolean;
+  voiceSet: boolean;
+  onSetVoice(): void;
+  onRun(prompt: AIPrompt, onText: (s: string) => void, signal: AbortSignal): Promise<string>;
+  onInsert(text: string): void;
+  onReplace(text: string): void;
+  onClose(): void;
+  onResize(h: number): void;
+}) {
+  const [ask, setAsk] = useState("");
+  const [out, setOut] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const last = useRef<AIPrompt | null>(null);
+  const ctrl = useRef<AbortController | null>(null);
+
+  const ideas: AIPrompt[] = p.hasText
+    ? [
+        { kind: "rewrite", mode: "improve", label: "Improve it" },
+        { kind: "rewrite", mode: "shorten", label: "Make it shorter" },
+        { kind: "rewrite", mode: "formal", label: "Make it more formal" },
+        { kind: "rewrite", mode: "to_bangla", label: "Translate to Bangla" },
+      ]
+    : [
+        { kind: "compose", text: "Write a short, polite reply that thanks them and confirms the next step.", label: "Draft a polite reply" },
+        { kind: "compose", text: "Write a short progress update for my team: what's done, what's next, any blockers.", label: "Write a project progress update" },
+        { kind: "compose", text: "Give me five ideas for a short post, one line each.", label: "Generate ideas for a post" },
+      ];
+
+  const run = async (prompt: AIPrompt) => {
+    last.current = prompt;
+    ctrl.current?.abort();
+    const c = new AbortController();
+    ctrl.current = c;
+    setBusy(true);
+    setError(null);
+    setOut("");
+    try {
+      setOut(await p.onRun(prompt, setOut, c.signal));
+    } catch (e) {
+      if (!c.signal.aborted) setError(friendlyError(e).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <SmallCard onResize={p.onResize} label="Write with AI">
+      <header className="sugg-head" data-tauri-drag-region>
+        <LogoMark size={18} />
+        <span className="sugg-count" data-tauri-drag-region />
+        <button className="icon-btn" aria-label="Close (Esc)" onClick={p.onClose}><IconX /></button>
+      </header>
+      {out || busy || error ? (
+        <div className="sugg-body">
+          <div className="ai-label">{last.current?.label}</div>
+          {error ? (
+            <div className="notice notice-error" role="alert">{error}</div>
+          ) : (
+            <div className={`writer-output sel-out${busy ? " is-streaming" : ""}`} aria-live="polite">{out}</div>
+          )}
+          {!busy && (
+            <div className="sugg-actions">
+              {out && p.hasText && last.current?.kind === "rewrite" ? (
+                <button className="btn btn-primary btn-sm" onClick={() => p.onReplace(out)}><IconCheck size={14} /> Replace</button>
+              ) : out ? (
+                <button className="btn btn-primary btn-sm" onClick={() => p.onInsert(out)}><IconCheck size={14} /> Insert</button>
+              ) : null}
+              {last.current && <button className="btn btn-quiet btn-sm" onClick={() => last.current && run(last.current)}>Regenerate</button>}
+              <button className="btn btn-quiet btn-sm" onClick={() => { setOut(""); setError(null); last.current = null; }}>Back</button>
+            </div>
+          )}
+        </div>
+      ) : (
+        <>
+          {!p.voiceSet && (
+            <div className="ai-voice">
+              <strong>Set your voice</strong>
+              <span>Choose how you want generated text to sound.</span>
+              <button className="btn btn-sm ai-voice-btn" onClick={p.onSetVoice}>Set voice</button>
+            </div>
+          )}
+          <div className="ai-start">
+            <h2>How do you want to get started?</h2>
+            <p>Here are some ideas</p>
+            <ul>
+              {ideas.map((idea) => (
+                <li key={idea.label}>
+                  <button onClick={() => run(idea)}>
+                    <IconSpark size={15} /> {idea.label}
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <form
+              className="ai-ask"
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (ask.trim()) run({ kind: "compose", text: ask.trim(), label: ask.trim() });
+              }}
+            >
+              <input
+                autoFocus
+                value={ask}
+                onChange={(e) => setAsk(e.target.value)}
+                placeholder={p.hasText ? "Tell Matra what to do with your text…" : "Tell Matra what to write…"}
+                aria-label="Tell Matra what to write"
+              />
+            </form>
+          </div>
+        </>
+      )}
+    </SmallCard>
   );
 }

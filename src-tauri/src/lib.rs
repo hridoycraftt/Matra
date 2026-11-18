@@ -96,6 +96,18 @@ fn reset_accessibility(app: AppHandle) -> bool {
     }
 }
 
+/// Turn Matra off in an app until Matra quits ("Yes, for this session").
+#[tauri::command]
+fn pause_app(app: AppHandle, name: String) {
+    let state = app.state::<State>();
+    state.session_ignored.lock().unwrap().push(name.to_lowercase());
+    everywhere::hide_badge(&app);
+    everywhere::hide_overlay(&app);
+    if let Some(p) = app.get_webview_window(PANEL) {
+        let _ = p.hide();
+    }
+}
+
 /// Apps installed on this Mac, for Settings → Apps.
 #[tauri::command]
 fn installed_apps() -> Vec<String> {
@@ -200,10 +212,10 @@ fn focus_source(app: AppHandle) {
 }
 
 #[tauri::command]
-fn open_main(app: AppHandle, settings: bool) {
+fn open_main(app: AppHandle, settings: bool, section: Option<String>) {
     show_main(&app);
     if settings {
-        let _ = app.emit_to("main", "matra://open-settings", ());
+        let _ = app.emit_to("main", "matra://open-settings", section);
     }
 }
 
@@ -328,6 +340,7 @@ pub fn run() {
             accessibility_status,
             open_accessibility_settings,
             installed_apps,
+            pause_app,
             reset_accessibility,
             current_field,
             write_field,
@@ -351,6 +364,7 @@ pub fn run() {
             if let Err(e) = handle.global_shortcut().register(shortcut) {
                 eprintln!("Could not register ⌃⌥M: {e}");
             }
+            everywhere::start_hover_watch(handle.clone());
             everywhere::start_watcher(handle);
             Ok(())
         })

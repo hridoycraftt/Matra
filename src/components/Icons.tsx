@@ -35,6 +35,7 @@ import {
   UserEdit01Icon,
   Search01Icon,
   AppStoreIcon,
+  Megaphone01Icon,
 } from "@hugeicons/core-free-icons";
 
 type P = { size?: number };
@@ -81,6 +82,7 @@ export const IconIdea = make(Idea01Icon);
 export const IconVoice = make(UserEdit01Icon);
 export const IconSearch = make(Search01Icon);
 export const IconAppList = make(AppStoreIcon);
+export const IconFeedback = make(Megaphone01Icon);
 
 export const IconChevron = ({ size = 16, dir = "down" }: P & { dir?: "down" | "left" | "right" | "up" }) => (
   <span className="icon-rot" style={{ transform: `rotate(${{ down: 0, left: 90, up: 180, right: -90 }[dir]}deg)` }}>

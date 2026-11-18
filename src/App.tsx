@@ -112,7 +112,7 @@ export default function App() {
   });
 
   // The menu bar item can ask the main window to open Settings.
-  useEffect(() => onAppEvent("matra://open-settings", () => openSettings()), []);
+  useEffect(() => onAppEvent<SettingsSection | null>("matra://open-settings", (s) => openSettings(s ?? "general")), []);
   useEffect(() => {
     configureEverywhere(settings);
   }, [settings]);

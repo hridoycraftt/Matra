@@ -1,5 +1,6 @@
-Matra 0.4.7 — you choose where Matra works.
-• New Settings → Apps: every app on your Mac with its own switch, plus search and On/Off filters. Newly installed apps show up by themselves, and removed apps disappear.
-• Matra now starts switched off in design and code apps — Figma, Sketch, Framer, Photoshop, Illustrator, InDesign, Affinity Designer, Xcode, Terminal, iTerm, VS Code, Cursor, Zed — so it never covers your canvas. Switch any of them back on in Settings → Apps.
-• The floating Matra panel in other apps is smaller and lighter: shorter text preview, compact tabs and agent rows, no extra footer.
-• The hover pill on text boxes has even spacing and a clearer power icon.
+Matra 0.4.8 — the small details, like Grammarly.
+• Rest the mouse on an underlined word in any app: a small card opens right under it with the fix (the changed part highlighted — click it to apply), Dismiss, and "See more in Matra". The word gets a soft highlight while you look.
+• The text-box helper now works like Grammarly's: a quiet dot, a red number when there are suggestions, and on hover four buttons — turn off, send feedback, Write with AI (light bulb) and open Matra.
+• Light bulb: "Set your voice", ideas to start from (based on whether you've written anything yet), and a box to tell Matra what to write. Insert or Replace puts the result straight into the app.
+• Power button: "Turn off Matra for this app?" — for this session, from now on, or not at all.
+• Includes 0.4.7: Settings → Apps, Matra off by default in design and code apps, and the lighter floating panel.

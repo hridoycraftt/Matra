@@ -22,13 +22,20 @@ export default function Underlines() {
   useUnderlineStyle(settings);
   const [marks, setMarks] = useState<Mark[]>(new URLSearchParams(location.search).has("preview") ? PREVIEW : []);
 
+  const [active, setActive] = useState<string | null>(null);
   useEffect(() => {
     document.documentElement.classList.add("is-overlay");
-    return onAppEvent<Mark[]>("matra://marks", setMarks);
+    const offs = [onAppEvent<Mark[]>("matra://marks", setMarks), onAppEvent<string | null>("matra://active", setActive)];
+    return () => offs.forEach((off) => off());
   }, []);
 
   return (
     <div className="overlay" aria-hidden="true">
+      {marks
+        .filter((m) => m.id === active)
+        .map((m) => (
+          <span key={`hl-${m.id}`} className={`overlay-hl overlay-hl-${m.category}`} style={{ left: m.x - 1, top: m.y, width: m.w + 2, height: m.h }} />
+        ))}
       {marks.map((m) => (
         <span
           key={m.id}

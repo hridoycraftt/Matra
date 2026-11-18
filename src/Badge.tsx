@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from "react";
-import { IconCheck, IconIdea, IconPower, IconSpark } from "./components/Icons";
-import { badgeDrag, badgeWidth, currentField, openPanel, type BadgeState } from "./lib/everywhere";
+import { IconCheck, IconFeedback, IconIdea, IconPower } from "./components/Icons";
+import { badgeDrag, badgeWidth, openPanel, type BadgeState } from "./lib/everywhere";
 import { inApp, onAppEvent } from "./lib/platform";
 import { loadSettings, saveSettings } from "./lib/storage";
 
 const DRAG_THRESHOLD = 4;
 const DOT = 30;
-const SEGMENT = 28;
-const ACTIONS = 56;
+/** Three actions to the left of the main button when hovered: off, feedback, AI. */
+const ACTIONS = 3 * 26 + 3 * 3 + 6;
+const FEEDBACK_URL = "https://github.com/hridoycraftt/matra/issues/new";
 
 /**
  * The floating helper on other apps' text fields. A quiet dot while you write; when
@@ -32,8 +33,7 @@ export default function Badge() {
   }, []);
 
   const issues = state.status === "issues" ? state : null;
-  const segments = issues ? (issues.improvements > 0 ? 1 : 0) + (issues.corrections > 0 ? 1 : 0) : 0;
-  const mainWidth = segments === 2 ? SEGMENT * 2 + 6 : DOT;
+  const mainWidth = DOT;
 
   // The window is exactly as wide as what it shows.
   useEffect(() => {
@@ -72,14 +72,6 @@ export default function Badge() {
     await win.startDragging();
   };
 
-  const turnOffHere = async () => {
-    const f = await currentField();
-    if (!f) return;
-    const s = loadSettings();
-    saveSettings({ ...s, ignoredApps: [...new Set([...s.ignoredApps, f.app])] });
-    expand(false);
-  };
-
   /** A click that ended a drag is not a click. */
   const click = (fn: () => void) => () => {
     if (dragged.current) return;
@@ -113,57 +105,53 @@ export default function Badge() {
     >
       {expanded && (
         <div className="badge-actions" role="toolbar" aria-label="Matra quick actions">
-          <button className="badge-action" aria-label="Turn off Matra in this app" title="Turn off in this app" onClick={click(turnOffHere)}>
-            <IconPower size={14} />
+          <button className="badge-action" aria-label="Turn off Matra here" title="Turn off Matra here" onClick={click(() => openPanel("turnoff"))}>
+            <IconPower size={15} />
           </button>
-          <button className="badge-action" aria-label="Write with AI" title="Write with AI" onClick={click(() => openPanel("write"))}>
-            <IconSpark size={14} />
+          <button
+            className="badge-action"
+            aria-label="Send feedback"
+            title="Send feedback"
+            onClick={click(async () => {
+              if (!inApp) return;
+              const { openUrl } = await import("@tauri-apps/plugin-opener");
+              await openUrl(FEEDBACK_URL);
+            })}
+          >
+            <IconFeedback size={15} />
+          </button>
+          <button className="badge-action badge-ai" aria-label="Write with AI" title="Write with AI" onClick={click(() => openPanel("ai"))}>
+            <IconIdea size={16} />
           </button>
         </div>
       )}
-      {issues ? (
-        <div className="badge-split" role="group" aria-label={`${issues.count} suggestions — drag to move`}>
-          {issues.improvements > 0 && (
-            <button
-              className="badge-seg badge-ideas"
-              aria-label={`${issues.improvements} improvement${issues.improvements === 1 ? "" : "s"}`}
-              title={`${issues.improvements} improvement${issues.improvements === 1 ? "" : "s"}: clarity, word choice, tone`}
-              onClick={click(() => openPanel("improvements"))}
-            >
-              <IconIdea size={15} />
-              {issues.corrections === 0 && <span className="badge-seg-num">{issues.improvements}</span>}
-            </button>
-          )}
-          {issues.corrections > 0 && (
-            <button
-              className="badge-seg badge-fixes"
-              aria-label={`${issues.corrections} correction${issues.corrections === 1 ? "" : "s"}`}
-              title={`${issues.corrections} correction${issues.corrections === 1 ? "" : "s"}: spelling, grammar, punctuation`}
-              onClick={click(() => openPanel("corrections"))}
-            >
-              {issues.corrections > 99 ? "99+" : issues.corrections}
-            </button>
-          )}
-        </div>
-      ) : (
-        <button
-          className={`badge-btn badge-${state.status}${expanded ? " is-big" : ""}`}
-          aria-label="Open Matra (drag to move)"
-          title={state.status === "checking" ? "Matra is checking…" : state.status === "clean" ? "Looks good" : "Open Matra · drag to move"}
-          onClick={click(() => openPanel("full"))}
-        >
-          {state.status === "clean" && !expanded ? (
-            <IconCheck size={13} />
-          ) : expanded || state.status === "checking" ? (
-            <svg width="15" height="15" viewBox="0 0 64 64" aria-hidden="true">
-              <path d="M19 50V24l13 16 13-16v26" fill="none" stroke="currentColor" strokeWidth="7" strokeLinejoin="bevel" />
-              <rect x="12" y="13" width="40" height="7" rx="2" fill="#ea4c89" />
-            </svg>
-          ) : (
-            <span className="badge-dot" aria-hidden="true" />
-          )}
-        </button>
-      )}
+      <button
+        className={`badge-btn badge-${state.status}${expanded ? " is-big" : ""}`}
+        aria-label={issues ? `${issues.count} suggestion${issues.count === 1 ? "" : "s"} — open Matra` : "Open Matra"}
+        title={
+          issues
+            ? `${issues.count} suggestion${issues.count === 1 ? "" : "s"}`
+            : state.status === "checking"
+              ? "Matra is checking…"
+              : state.status === "clean"
+                ? "Looks good"
+                : "Open Matra"
+        }
+        onClick={click(() => openPanel(issues ? "card" : "full"))}
+      >
+        {issues ? (
+          <span className="badge-count">{issues.count > 99 ? "99+" : issues.count}</span>
+        ) : state.status === "clean" && !expanded ? (
+          <IconCheck size={13} />
+        ) : expanded || state.status === "checking" ? (
+          <svg width="15" height="15" viewBox="0 0 64 64" aria-hidden="true">
+            <path d="M19 50V24l13 16 13-16v26" fill="none" stroke="currentColor" strokeWidth="7" strokeLinejoin="bevel" />
+            <rect x="12" y="13" width="40" height="7" rx="2" fill="#ea4c89" />
+          </svg>
+        ) : (
+          <span className="badge-dot" aria-hidden="true" />
+        )}
+      </button>
     </div>
   );
 }

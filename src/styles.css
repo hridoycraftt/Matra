@@ -1316,3 +1316,110 @@ html.is-panel .rewrite-grid { gap: 5px; }
 html.is-panel .empty { padding: 16px 8px; }
 html.is-panel .empty h3 { font-size: 13px; }
 html.is-panel .empty p { font-size: 12px; }
+
+/* Hovered word in another app: a soft highlight behind it */
+.overlay-hl { position: absolute; border-radius: 3px; animation: fade-in 120ms ease both; }
+.overlay-hl-correctness { background: color-mix(in srgb, var(--c-correctness) 22%, transparent); }
+.overlay-hl-clarity { background: color-mix(in srgb, var(--c-clarity) 22%, transparent); }
+.overlay-hl-engagement { background: color-mix(in srgb, var(--c-engagement) 22%, transparent); }
+.overlay-hl-delivery { background: color-mix(in srgb, var(--c-delivery) 24%, transparent); }
+
+/* ============ Word card (one underlined word, Grammarly-style) ============ */
+.word-card {
+  margin: 1px;
+  padding: 10px 6px 6px;
+  border-radius: 12px;
+  background: var(--page);
+  box-shadow: 0 0 0 1px var(--line-2);
+  animation: pop-in 150ms var(--ease) both;
+}
+.word-kind { display: flex; align-items: center; gap: 6px; padding: 0 8px; font-size: 12px; color: var(--ink-3); }
+.word-fix {
+  display: block;
+  width: 100%;
+  margin: 4px 0 2px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  text-align: left;
+  font: 600 17px/1.35 var(--font-ui);
+  color: var(--ink);
+  cursor: pointer;
+}
+.word-fix:hover { background: var(--hover); }
+.word-fix mark { background: none; color: var(--c-clarity); font-weight: 700; }
+.word-fix-correctness mark { color: #2f6fe0; }
+.word-fix-engagement mark { color: var(--c-engagement); }
+.word-fix-delivery mark { color: #a0670a; }
+.word-fix del { color: var(--ink-3); }
+.word-alts { display: flex; flex-wrap: wrap; gap: 5px; padding: 0 8px 4px; }
+.word-why { margin: 0; padding: 0 8px 6px; font-size: 12px; color: var(--ink-3); line-height: 1.45; }
+.word-rows { display: flex; flex-direction: column; border-top: 1px solid var(--line); padding-top: 4px; }
+.word-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  height: 32px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  font-size: 13px;
+  color: var(--ink-2);
+  text-align: left;
+}
+.word-row:hover { background: var(--hover); color: var(--ink); }
+.badge-issues { background: #e5484d; }
+.badge-issues:hover { background: #d13a3f; }
+.badge-ai { color: #0e8a7e; }
+
+/* Turn-off dialog and AI card (from the badge) */
+.small-card { width: auto; }
+.turnoff { position: relative; display: flex; flex-direction: column; gap: 8px; padding: 22px 20px 14px; text-align: center; }
+.turnoff h2 { margin: 6px 0 8px; font-size: 16px; line-height: 1.3; }
+.turnoff-x { position: absolute; top: 6px; right: 6px; }
+.turnoff .btn-block { height: 34px; font-size: 13.5px; }
+.turnoff-no { background: transparent; color: var(--ink-2); }
+.turnoff-no:hover { background: var(--hover); }
+.ai-voice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 14px 16px;
+  background: linear-gradient(120deg, color-mix(in srgb, var(--brand) 12%, var(--page)), color-mix(in srgb, var(--c-clarity) 12%, var(--page)));
+  border-bottom: 1px solid var(--line);
+}
+.ai-voice strong { font-size: 14px; }
+.ai-voice span { font-size: 12.5px; color: var(--ink-2); }
+.ai-voice-btn { margin-top: 4px; background: var(--ink); color: var(--page); }
+.ai-start { padding: 12px 14px 14px; background: var(--panel); }
+.ai-start h2 { margin: 0; font-size: 14.5px; }
+.ai-start p { margin: 2px 0 8px; font-size: 12px; color: var(--ink-3); }
+.ai-start ul { list-style: none; margin: 0 0 10px; padding: 0; }
+.ai-start li + li { border-top: 1px solid var(--line); }
+.ai-start li button {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 9px 2px;
+  border: 0;
+  background: transparent;
+  font-size: 13px;
+  text-align: left;
+  color: var(--ink);
+}
+.ai-start li button:hover { color: var(--brand); }
+.ai-ask input {
+  width: 100%;
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 9px;
+  border: 0;
+  background: var(--page);
+  box-shadow: 0 0 0 1px var(--line), 0 1px 3px rgba(13, 12, 34, 0.06);
+}
+.ai-ask input:focus { outline: none; box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand) 55%, transparent); }
+.ai-label { font-size: 12px; color: var(--ink-3); margin-bottom: 6px; }

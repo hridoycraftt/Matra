@@ -51,6 +51,8 @@ pub struct Mark {
 #[derive(Default)]
 pub struct State {
     pub underlines: Mutex<Vec<Underline>>,
+    /// Where each underline is on screen right now (global points), for hover detection.
+    pub screen_marks: Mutex<Vec<(String, Rect)>>,
     pub enabled: AtomicBool,
     pub auto_open: AtomicBool,
     /// Whether a paste fallback should replace the whole field (true) or only the selection.
@@ -65,6 +67,8 @@ pub struct State {
     /// Where the user dragged the badge, per app: offset from the field's top-left corner.
     pub badge_offsets: Mutex<HashMap<String, (f64, f64)>>,
     pub ignored_apps: Mutex<Vec<String>>,
+    /// Apps turned off "for this session" (until Matra quits).
+    pub session_ignored: Mutex<Vec<String>>,
     pub last: Mutex<Option<FieldInfo>>,
     #[cfg(target_os = "macos")]
     pub element: Mutex<Option<crate::ax::Element>>,
@@ -208,9 +212,12 @@ pub enum PanelMode {
     Card,
     /// The full assistant: suggestions, score, tone, rewrite, write with AI.
     Full,
+    /// The small card for one underlined word, right under it (like hovering an underline).
+    Word,
 }
 
 pub const CARD_WIDTH: f64 = 340.0;
+pub const WORD_WIDTH: f64 = 268.0;
 pub const FULL_SIZE: (f64, f64) = (360.0, 480.0);
 const GAP: f64 = 8.0;
 const MARGIN: f64 = 8.0;
@@ -232,7 +239,11 @@ pub fn place(anchor: Rect, w: f64, h: f64, screen: Rect, mode: PanelMode) -> (f6
     let fits = |(x, y): (f64, f64)| {
         x >= screen.x + MARGIN - 0.5 && y >= screen.y + MARGIN - 0.5 && x + w <= right_edge + 0.5 && y + h <= bottom_edge + 0.5
     };
+    // A word card starts at the word's left edge, like a tooltip.
+    let word_below = (clamp_x(anchor.x - 8.0), anchor.y + anchor.h + GAP);
+    let word_above = (clamp_x(anchor.x - 8.0), anchor.y - GAP - h);
     let order = match mode {
+        PanelMode::Word => [word_below, word_above, right, left],
         PanelMode::Card => [below, above, right, left],
         PanelMode::Full => [right, left, below, above],
     };
@@ -306,13 +317,14 @@ pub fn place_panel<R: Runtime>(app: &AppHandle<R>, focus: bool, mode: PanelMode,
     let Some(panel) = app.get_webview_window(PANEL) else { return };
     let (w, h) = match mode {
         PanelMode::Card => (CARD_WIDTH, height.unwrap_or(190.0).clamp(120.0, 420.0)),
+        PanelMode::Word => (WORD_WIDTH, height.unwrap_or(150.0).clamp(90.0, 320.0)),
         PanelMode::Full => FULL_SIZE,
     };
     let _ = panel.set_size(tauri::LogicalSize::new(w, h));
     let last = app.state::<State>().last.lock().unwrap().clone();
     if let Some(f) = last {
         let anchor = anchor.unwrap_or(match mode {
-            PanelMode::Card => badge_rect(&app.state::<State>(), &f),
+            PanelMode::Card | PanelMode::Word => badge_rect(&app.state::<State>(), &f),
             PanelMode::Full => Rect { x: f.x, y: f.y, w: f.width, h: f.height },
         });
         let screen = screen_at(app, anchor.x, anchor.y);
@@ -328,6 +340,18 @@ pub fn place_panel<R: Runtime>(app: &AppHandle<R>, focus: bool, mode: PanelMode,
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn hover_hits_the_word_under_the_mouse() {
+        let marks = vec![
+            ("a".to_string(), Rect { x: 100.0, y: 200.0, w: 60.0, h: 18.0 }),
+            ("b".to_string(), Rect { x: 200.0, y: 200.0, w: 40.0, h: 18.0 }),
+        ];
+        assert_eq!(hit_mark(&marks, 130.0, 210.0).map(|m| m.0), Some("a".to_string()));
+        assert_eq!(hit_mark(&marks, 220.0, 219.0).map(|m| m.0), Some("b".to_string()));
+        assert!(hit_mark(&marks, 180.0, 210.0).is_none());
+        assert!(hit_mark(&marks, 130.0, 260.0).is_none());
+    }
 
     #[test]
     fn ignored_apps_match_names_and_versioned_names() {
@@ -417,7 +441,8 @@ pub fn start_watcher<R: Runtime>(app: AppHandle<R>) {
 
             let field = ax::focused_field().filter(|f| {
                 let ignored = state.ignored_apps.lock().unwrap();
-                f.pid != own_pid && !is_ignored(&ignored, &f.app)
+                let session = state.session_ignored.lock().unwrap();
+                f.pid != own_pid && !is_ignored(&ignored, &f.app) && !is_ignored(&session, &f.app)
             });
 
             let Some(field) = field else {
@@ -512,6 +537,10 @@ pub fn start_watcher<R: Runtime>(app: AppHandle<R>) {
                 if let Some(overlay) = app.get_webview_window(OVERLAY) {
                     let _ = overlay.set_position(LogicalPosition::new(info.x, info.y));
                     let _ = overlay.set_size(tauri::LogicalSize::new(info.width.max(1.0), info.height.max(1.0)));
+                    *state.screen_marks.lock().unwrap() = marks
+                        .iter()
+                        .map(|m| (m.id.clone(), Rect { x: m.x + info.x, y: m.y + info.y, w: m.w, h: m.h }))
+                        .collect();
                     if marks != last_marks {
                         let _ = app.emit_to(OVERLAY, "matra://marks", &marks);
                         last_marks = marks.clone();
@@ -539,11 +568,76 @@ pub fn start_watcher<R: Runtime>(app: AppHandle<R>) {
                     }
                 }
             } else {
+                state.screen_marks.lock().unwrap().clear();
                 if !last_marks.is_empty() {
                     last_marks.clear();
                     let _ = app.emit_to(OVERLAY, "matra://marks", &last_marks);
                 }
                 hide_overlay(&app);
+            }
+        }
+    });
+}
+
+/// Mouse position in global points (the same space as Accessibility frames).
+fn cursor_points<R: Runtime>(app: &AppHandle<R>) -> Option<(f64, f64)> {
+    let p = app.cursor_position().ok()?;
+    for m in app.available_monitors().ok()? {
+        let (pos, size) = (m.position(), m.size());
+        if p.x >= pos.x as f64 && p.y >= pos.y as f64 && p.x < (pos.x + size.width as i32) as f64 && p.y < (pos.y + size.height as i32) as f64 {
+            let s = m.scale_factor();
+            return Some((p.x / s, p.y / s));
+        }
+    }
+    let s = app.primary_monitor().ok()??.scale_factor();
+    Some((p.x / s, p.y / s))
+}
+
+/// Which underline (if any) contains the point. Underlines are thin, so the word's
+/// whole line height counts, plus a little slack.
+pub fn hit_mark(marks: &[(String, Rect)], x: f64, y: f64) -> Option<(String, Rect)> {
+    marks
+        .iter()
+        .find(|(_, r)| x >= r.x - 1.0 && x <= r.x + r.w + 1.0 && y >= r.y - 2.0 && y <= r.y + r.h + 3.0)
+        .cloned()
+}
+
+/// Watch the mouse: resting on an underlined word for a moment opens its small card,
+/// like hovering a Grammarly underline. Cheap: only compares against known rectangles.
+pub fn start_hover_watch<R: Runtime>(app: AppHandle<R>) {
+    std::thread::spawn(move || {
+        let mut over: Option<String> = None;
+        let mut since = std::time::Instant::now();
+        let mut opened: Option<String> = None;
+        loop {
+            std::thread::sleep(std::time::Duration::from_millis(110));
+            let state = app.state::<State>();
+            let marks = state.screen_marks.lock().unwrap().clone();
+            if marks.is_empty() {
+                if over.take().is_some() {
+                    let _ = app.emit_to(OVERLAY, "matra://active", Option::<String>::None);
+                }
+                opened = None;
+                continue;
+            }
+            let Some((x, y)) = cursor_points(&app) else { continue };
+            let hit = hit_mark(&marks, x, y);
+            let hit_id = hit.as_ref().map(|(id, _)| id.clone());
+            if hit_id != over {
+                over = hit_id.clone();
+                since = std::time::Instant::now();
+                let _ = app.emit_to(OVERLAY, "matra://active", &over);
+                if over.is_none() {
+                    opened = None;
+                }
+                continue;
+            }
+            // Dwell ~250 ms before opening, so passing over a word doesn't flash a card.
+            if let Some((id, r)) = hit {
+                if opened.as_deref() != Some(id.as_str()) && since.elapsed().as_millis() >= 250 {
+                    opened = Some(id.clone());
+                    let _ = app.emit_to(PANEL, "matra://hover-issue", (id, Some((r.x, r.y, r.w, r.h))));
+                }
             }
         }
     });

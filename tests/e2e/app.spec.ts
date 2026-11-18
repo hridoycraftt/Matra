@@ -454,3 +454,54 @@ test("Settings → Apps: every app has a switch; design and code apps start off"
   expect(off).toContain("Mail");
   expect(off).not.toContain("Figma");
 });
+
+const ONE_ISSUE = {
+  language: "en",
+  score: 70,
+  tone_labels: [],
+  tone_summary: "",
+  issues: [
+    {
+      category: "correctness",
+      original: "you're quick",
+      replacement: "your quick",
+      alternatives: [],
+      prefix: "Thank you for ",
+      title: "Correct pronoun usage",
+      explanation: "Use the possessive “your”.",
+    },
+  ],
+};
+
+test("word card: shows the fix with the changed word highlighted, and applies it", async ({ page }) => {
+  await mockGemini(page, { check: ONE_ISSUE });
+  await page.goto("/?view=panel&mode=word");
+  const card = page.getByRole("dialog", { name: "Suggestion" });
+  await expect(card.getByText("Correct pronoun usage")).toBeVisible();
+  await expect(card.locator(".word-fix mark")).toHaveText("your");
+  await expect(card.getByRole("button", { name: "Dismiss" })).toBeVisible();
+  await expect(card.getByRole("button", { name: "See more in Matra" })).toBeVisible();
+  await card.locator(".word-fix").click();
+  await expect(card.getByText("already handled")).toBeVisible();
+});
+
+test("bulb card: ideas for the text, and a result to put back", async ({ page }) => {
+  await mockGemini(page, { check: ONE_ISSUE, written: "Thanks for your quick reply." });
+  await page.goto("/?view=panel&mode=card&card=ai");
+  const card = page.getByRole("dialog", { name: "Write with AI" });
+  await expect(card.getByText("Set your voice")).toBeVisible();
+  await card.getByRole("button", { name: "Improve it" }).click();
+  await expect(card.locator(".writer-output")).toHaveText("Thanks for your quick reply.");
+  await expect(card.getByRole("button", { name: "Replace" })).toBeVisible();
+});
+
+test("power button: turn Matra off for this app from now on", async ({ page }) => {
+  await mockGemini(page, { check: ONE_ISSUE });
+  await page.goto("/?view=panel&mode=card&card=turnoff");
+  const dialog = page.getByRole("dialog", { name: "Turn off Matra for Mail" });
+  await expect(dialog.getByRole("heading", { name: "Turn off Matra for Mail?" })).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Yes, for this session" })).toBeVisible();
+  await dialog.getByRole("button", { name: "Yes, from now on" }).click();
+  const off = await page.evaluate(() => JSON.parse(localStorage.getItem("matra.settings.v1")!).ignoredApps);
+  expect(off).toContain("Mail");
+});

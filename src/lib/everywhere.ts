@@ -53,7 +53,7 @@ export function configureEverywhere(s: Settings) {
 
 export const currentField = () => (inApp ? invoke<FieldInfo | null>("current_field") : Promise.resolve(null));
 export const writeField = (text: string) => (inApp ? invoke<string>("write_field", { text }) : Promise.resolve("preview"));
-export type PanelMode = "card" | "full";
+export type PanelMode = "card" | "full" | "word";
 
 /** Show the panel next to the field. In "card" mode it is a small single-suggestion card. */
 export interface ScreenRect {
@@ -71,7 +71,7 @@ export const setUnderlines = (marks: { id: string; start: number; len: number; c
   inApp ? invoke("set_underlines", { underlines: marks }) : Promise.resolve();
 
 /** Ask the panel window (the checker) to switch mode and show itself. Used by the badge. */
-export async function openPanel(mode: PanelMode | "write" | "corrections" | "improvements") {
+export async function openPanel(mode: PanelMode | "write" | "corrections" | "improvements" | "ai" | "turnoff") {
   if (!inApp) return;
   const { emitTo } = await import("@tauri-apps/api/event");
   await emitTo("panel", "matra://mode", mode);
@@ -94,7 +94,11 @@ export const setCaret = (pos: number) => (inApp ? invoke<boolean>("set_caret", {
 /** Give keyboard focus back to the app the user is writing in, keeping the panel open. */
 export const focusSource = () => (inApp ? invoke("focus_source") : Promise.resolve());
 export const hidePanel = () => (inApp ? invoke("hide_panel") : Promise.resolve());
-export const openMain = (settings: boolean) => (inApp ? invoke("open_main", { settings }) : Promise.resolve());
+export const openMain = (settings: boolean, section?: string) =>
+  inApp ? invoke("open_main", { settings, section }) : Promise.resolve();
+
+/** Turn Matra off in this app until it quits. */
+export const pauseApp = (name: string) => (inApp ? invoke("pause_app", { name }) : Promise.resolve());
 
 export async function sendBadge(state: BadgeState) {
   if (!inApp) return;
