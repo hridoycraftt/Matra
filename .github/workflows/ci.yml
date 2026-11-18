@@ -27,7 +27,8 @@ jobs:
 
   mac:
     name: WebKit E2E + Rust check (macOS)
-    runs-on: macos-latest
+    # Apple-silicon runners are often short of capacity; the Intel runner is available.
+    runs-on: macos-15-intel
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
