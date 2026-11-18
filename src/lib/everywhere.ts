@@ -31,7 +31,7 @@ export const openAccessibilitySettings = () => (inApp ? invoke("open_accessibili
 export function configureEverywhere(s: Settings) {
   if (!inApp) return Promise.resolve();
   return invoke("configure_everywhere", {
-    config: { enabled: s.everywhere, autoOpen: s.autoOpenPanel, ignoredApps: s.ignoredApps },
+    config: { enabled: s.everywhere, autoOpen: s.autoOpenPanel, ignoredApps: s.ignoredApps, badgeOffsets: s.badgeOffsets },
   });
 }
 
@@ -61,6 +61,10 @@ export async function openPanel(mode: PanelMode) {
   await emitTo("panel", "matra://mode", mode);
   await showPanel(true, mode);
 }
+
+/** Badge drag: start, then finish to get [app, dx, dy] for the spot the user chose. */
+export const badgeDrag = (start: boolean) =>
+  inApp ? invoke<[string, number, number] | null>("badge_drag", { start }) : Promise.resolve(null);
 
 /** Show or hide the badge on the field (it only appears after the user has typed). */
 export const setBadge = (visible: boolean) => (inApp ? invoke("set_badge", { visible }) : Promise.resolve());

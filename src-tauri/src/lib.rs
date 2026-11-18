@@ -109,6 +109,11 @@ fn show_panel(
     everywhere::place_panel(&app, focus, mode, height, anchor);
 }
 
+#[tauri::command]
+fn badge_drag(app: AppHandle, start: bool) -> Option<(String, f64, f64)> {
+    everywhere::badge_drag(&app, start)
+}
+
 /// The checker's current suggestions, to underline inside the other app.
 #[tauri::command]
 fn set_underlines(app: AppHandle, underlines: Vec<everywhere::Underline>) {
@@ -272,6 +277,7 @@ pub fn run() {
             show_panel,
             set_badge,
             set_underlines,
+            badge_drag,
             focus_source,
             hide_panel,
             open_main

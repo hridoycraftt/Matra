@@ -780,3 +780,6 @@ html.in-app.is-card .sugg { width: auto; }
   line-height: 1.5;
 }
 .rules:focus { outline: none; border-color: var(--ink-2); }
+.badge-btn { cursor: grab; touch-action: none; }
+.badge-btn.is-dragging { cursor: grabbing; transform: scale(1.12); box-shadow: 0 6px 16px rgba(13, 12, 34, 0.35); }
+.link-btn { border: 0; background: none; padding: 0; color: var(--brand); font: inherit; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }

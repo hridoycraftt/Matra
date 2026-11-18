@@ -259,6 +259,17 @@ function Everywhere({ settings, onSettings }: { settings: Settings; onSettings(s
           aria-label="Apps where Matra should not check"
         />
       </label>
+      <p className="muted small">
+        Drag the Matra badge anywhere on a text box; it stays there for that app.
+        {Object.keys(settings.badgeOffsets).length > 0 && (
+          <>
+            {" "}
+            <button className="link-btn" onClick={() => onSettings({ ...settings, badgeOffsets: {} })}>
+              Reset badge positions
+            </button>
+          </>
+        )}
+      </p>
       <p className="muted small">Shortcut: <kbd>⌃⌥M</kbd> opens Matra for the text you're in, or for the selected text.</p>
       {inApp && atLogin !== null && (
         <label className="toggle">

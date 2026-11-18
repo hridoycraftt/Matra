@@ -98,6 +98,8 @@ export interface Settings {
   dictionary: string[];
   /** The writer's own house style rules, one per line. */
   styleRules: string;
+  /** Where the user dragged the badge, per app name: [dx, dy] from the field's corner. */
+  badgeOffsets: Record<string, [number, number]>;
 }
 
 export const PROVIDERS: { id: Provider; label: string; keyHint: string; keyUrl: string; placeholder: string }[] = [
@@ -138,6 +140,7 @@ export const DEFAULT_SETTINGS: Settings = {
   ignoredApps: [],
   dictionary: [],
   styleRules: "",
+  badgeOffsets: {},
 };
 
 export function activeModel(s: Settings): string {
