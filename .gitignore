@@ -1,0 +1,12 @@
+node_modules
+dist
+src-tauri/target
+src-tauri/gen/schemas
+test-results
+playwright-report
+*.key
+*.key.pub.bak
+.DS_Store
+.env
+.env.*
+*.tsbuildinfo
