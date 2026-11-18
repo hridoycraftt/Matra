@@ -39,9 +39,10 @@
         "skipTaskbar": true,
         "resizable": true,
         "focus": false,
-        "titleBarStyle": "Overlay",
-        "hiddenTitle": true,
-        "visibleOnAllWorkspaces": true
+        "visibleOnAllWorkspaces": true,
+        "decorations": false,
+        "transparent": true,
+        "shadow": true
       },
       {
         "label": "badge",

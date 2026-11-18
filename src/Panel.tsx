@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Editor, type EditorHandle } from "./components/Editor";
 import { GoalsMenu } from "./components/GoalsMenu";
 import { IconCheck, IconGear, IconX, LogoMark } from "./components/Icons";
@@ -6,15 +6,18 @@ import { SidePanel } from "./components/SidePanel";
 import {
   configureEverywhere,
   currentField,
+  focusSource,
   hidePanel,
   openMain,
   sendBadge,
+  setBadge,
   showPanel,
   writeField,
   type FieldInfo,
+  type PanelMode,
 } from "./lib/everywhere";
 import { inApp, onAppEvent, useApiKey, useSettings } from "./lib/platform";
-import { DEFAULT_GOALS, type Goals } from "./lib/types";
+import { CATEGORIES, DEFAULT_GOALS, PROVIDERS, type Goals, type Issue } from "./lib/types";
 import { useAssistant, useSelectionWords } from "./lib/useAssistant";
 
 const GOALS_KEY = "matra.panelGoals";
@@ -38,8 +41,9 @@ function loadGoals(): Goals {
 }
 
 /**
- * The floating panel that works on text in other apps. It is also Matra's "brain" for
- * other apps: it checks the focused field in the background and drives the badge.
+ * Matra for other apps. This window is also the background checker: it follows the
+ * focused text field, checks it after a pause, drives the badge, and opens itself
+ * as a small suggestion card (or the full assistant) beside the field.
  */
 export default function Panel() {
   const [settings] = useSettings();
@@ -47,11 +51,16 @@ export default function Panel() {
   const [goals, setGoals] = useState<Goals>(loadGoals);
   const [field, setField] = useState<FieldInfo | null>(inApp ? null : PREVIEW_FIELD);
   const [text, setText] = useState(inApp ? "" : PREVIEW_FIELD.text);
+  const [mode, setMode] = useState<PanelMode>(() =>
+    !inApp && new URLSearchParams(location.search).get("mode") === "card" ? "card" : "full",
+  );
+  const [shown, setShown] = useState(!inApp);
   const [writeNote, setWriteNote] = useState<string | null>(null);
   const editor = useRef<EditorHandle>(null);
   const fromField = useRef(false);
+  const typed = useRef(false);
   const writeTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const autoOpened = useRef<number | null>(null);
+  const autoOpened = useRef<string | null>(null);
   const textRef = useRef(text);
   textRef.current = text;
 
@@ -66,7 +75,7 @@ export default function Panel() {
         writeField(next)
           .then((how) => setWriteNote(how === "paste" ? "Pasted into the app." : null))
           .catch((e) => setWriteNote(`Couldn't update the app: ${e}`));
-      }, 250);
+      }, 200);
     },
     goals,
     settings,
@@ -87,15 +96,27 @@ export default function Panel() {
     }
   }, [goals]);
 
+  const open = (m: PanelMode, focus: boolean) => {
+    setMode(m);
+    setShown(true);
+    showPanel(focus, m);
+  };
+  const close = () => {
+    setShown(false);
+    hidePanel();
+  };
+
   // Follow the text field the user is typing in.
   useEffect(() => {
     const apply = (f: FieldInfo) => {
       setField((prev) => {
         if (!prev || prev.field_id !== f.field_id) {
           a.reset();
+          typed.current = false;
           autoOpened.current = null;
           setText(f.text);
         } else if (f.text !== textRef.current) {
+          typed.current = true;
           fromField.current = true;
           a.syncText(f.text);
           setText(f.text);
@@ -105,35 +126,82 @@ export default function Panel() {
       });
     };
     currentField().then((f) => f && apply(f));
-    const off1 = onAppEvent<FieldInfo>("matra://field", apply);
-    const off2 = onAppEvent("matra://field-cleared", () => sendBadge({ status: "idle" }));
-    return () => {
-      off1();
-      off2();
-    };
+    const offs = [
+      onAppEvent<FieldInfo>("matra://field", apply),
+      onAppEvent("matra://field-cleared", () => {
+        sendBadge({ status: "idle" });
+        setBadge(false);
+      }),
+      onAppEvent<PanelMode>("matra://mode", (m) => {
+        setMode(m);
+        setShown(true);
+      }),
+    ];
+    return () => offs.forEach((off) => off());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Badge + automatic opening.
+  // Badge: only after the user has typed in this field, never just because it has focus.
   useEffect(() => {
-    if (a.check.status === "checking") sendBadge({ status: "checking" });
-    else if (a.check.status === "error") sendBadge({ status: "error" });
-    else if (a.check.status === "done") {
-      sendBadge(a.issues.length ? { status: "issues", count: a.issues.length } : { status: "clean" });
-      if (a.issues.length && settings.autoOpenPanel && field && autoOpened.current !== field.field_id) {
-        autoOpened.current = field.field_id;
-        showPanel(false);
-      }
-    } else sendBadge({ status: "idle" });
-  }, [a.check.status, a.issues.length, settings.autoOpenPanel, field]);
+    const status = a.check.status;
+    if (status === "checking") sendBadge({ status: "checking" });
+    else if (status === "error") sendBadge({ status: "error" });
+    else if (status === "done") sendBadge(a.issues.length ? { status: "issues", count: a.issues.length } : { status: "clean" });
+    else sendBadge({ status: "idle" });
+
+    const active = typed.current && textRef.current.trim().length > 0;
+    if (!active) {
+      setBadge(false);
+      return;
+    }
+    if (status === "done" && a.issues.length === 0) {
+      setBadge(true);
+      const t = setTimeout(() => setBadge(false), 2500); // a quick "all good", then out of the way
+      return () => clearTimeout(t);
+    }
+    setBadge(status === "checking" || a.issues.length > 0 || status === "error");
+  }, [a.check.status, a.issues.length]);
+
+  // Open the small card by itself when a check finds something new.
+  useEffect(() => {
+    if (a.check.status !== "done" || !field || !typed.current) return;
+    if (a.issues.length === 0) {
+      if (shown && mode === "card") close();
+      return;
+    }
+    const key = `${field.field_id}:${a.issues.map((i) => i.id).join(",")}`;
+    if (settings.autoOpenPanel && !shown && autoOpened.current !== key) {
+      autoOpened.current = key;
+      open("card", false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [a.check.status, a.issues, settings.autoOpenPanel]);
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") hidePanel();
-    };
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && close();
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
+
+  const providerLabel = PROVIDERS.find((x) => x.id === settings.provider)!.label;
+
+  if (mode === "card") {
+    return (
+      <SuggestionCard
+        app={field?.app ?? "this app"}
+        issues={a.issues}
+        hasKey={!!apiKey}
+        onAccept={(id) => {
+          a.accept(id);
+          focusSource();
+        }}
+        onDismiss={a.dismiss}
+        onExpand={() => open("full", true)}
+        onClose={close}
+        onResize={(h) => shown && showPanel(false, "card", h)}
+      />
+    );
+  }
 
   return (
     <div className="mini">
@@ -147,13 +215,13 @@ export default function Panel() {
         <button className="icon-btn" aria-label="Matra settings" onClick={() => openMain(true)}>
           <IconGear />
         </button>
-        <button className="icon-btn" aria-label="Close panel (Esc)" onClick={() => hidePanel()}>
+        <button className="icon-btn" aria-label="Close panel (Esc)" onClick={close}>
           <IconX />
         </button>
       </header>
 
       <div className="mini-text">
-        {field ? (
+        {field && text ? (
           <Editor
             ref={editor}
             text={text}
@@ -165,8 +233,9 @@ export default function Panel() {
           />
         ) : (
           <p className="muted small">
-            Click into any text box in another app and start typing. Matra checks it when you pause. If an app's text
-            can't be read, select the text and press ⌃⌥M.
+            {field
+              ? `Start typing in ${field.app}. Matra checks your text when you pause.`
+              : "Click into any text box in another app and start typing. If an app's text can't be read, select it and press ⌃⌥M."}
           </p>
         )}
       </div>
@@ -184,6 +253,7 @@ export default function Panel() {
         onDismiss={a.dismiss}
         onAcceptAll={a.acceptAll}
         hasKey={!!apiKey}
+        providerLabel={providerLabel}
         onOpenSettings={() => openMain(true)}
         writer={a.writer}
         selectionWords={selectionWords}
@@ -197,10 +267,89 @@ export default function Panel() {
 
       <footer className="mini-foot">
         <span className="muted small">Accepted fixes go straight into {field?.app ?? "the app"}.</span>
-        <button className="btn btn-primary btn-sm" onClick={() => hidePanel()}>
+        <button className="btn btn-primary btn-sm" onClick={close}>
           <IconCheck /> Done
         </button>
       </footer>
+    </div>
+  );
+}
+
+/** One suggestion at a time, small, next to the field — the card that opens by itself. */
+function SuggestionCard(p: {
+  app: string;
+  issues: Issue[];
+  hasKey: boolean;
+  onAccept(id: string): void;
+  onDismiss(id: string): void;
+  onExpand(): void;
+  onClose(): void;
+  onResize(height: number): void;
+}) {
+  const [index, setIndex] = useState(0);
+  const root = useRef<HTMLDivElement>(null);
+  const i = Math.min(index, Math.max(0, p.issues.length - 1));
+  const issue = p.issues[i];
+
+  // Size the window to the card.
+  useLayoutEffect(() => {
+    const el = root.current;
+    if (!el) return;
+    const report = () => p.onResize(Math.ceil(el.getBoundingClientRect().height));
+    report();
+    const ro = new ResizeObserver(report);
+    ro.observe(el);
+    return () => ro.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.classList.add("is-card");
+    return () => document.documentElement.classList.remove("is-card");
+  }, []);
+
+  return (
+    <div className="sugg" ref={root} role="dialog" aria-label={`Matra suggestions for ${p.app}`}>
+      <header className="sugg-head" data-tauri-drag-region>
+        <LogoMark size={16} />
+        <span className="sugg-count" data-tauri-drag-region>
+          {issue ? `${p.issues.length} suggestion${p.issues.length === 1 ? "" : "s"}` : "Matra"}
+        </span>
+        {p.issues.length > 1 && (
+          <span className="sugg-nav">
+            <button className="icon-btn" aria-label="Previous suggestion" onClick={() => setIndex((i - 1 + p.issues.length) % p.issues.length)}>‹</button>
+            <span className="muted small">{i + 1}/{p.issues.length}</span>
+            <button className="icon-btn" aria-label="Next suggestion" onClick={() => setIndex((i + 1) % p.issues.length)}>›</button>
+          </span>
+        )}
+        <button className="btn btn-quiet btn-sm" onClick={p.onExpand}>Open Matra</button>
+        <button className="icon-btn" aria-label="Close (Esc)" onClick={p.onClose}><IconX /></button>
+      </header>
+      {!p.hasKey ? (
+        <p className="sugg-body muted small">Add your AI key in Matra's Settings to get suggestions.</p>
+      ) : issue ? (
+        <div className="sugg-body" key={issue.id}>
+          <div className="sugg-title">
+            <i className={`dot dot-${issue.category}`} aria-hidden="true" />
+            <span>{issue.title}</span>
+            <span className="muted small">· {CATEGORIES.find((c) => c.id === issue.category)?.label}</span>
+          </div>
+          <div className="sugg-fix">
+            <del>{issue.original}</del>
+            <span aria-hidden="true" className="muted">→</span>
+            <button className={`sugg-chip sugg-chip-${issue.category}`} onClick={() => p.onAccept(issue.id)} title="Accept">
+              {issue.replacement || "(remove)"}
+            </button>
+          </div>
+          <p className="sugg-why">{issue.explanation}</p>
+          <div className="sugg-actions">
+            <button className="btn btn-primary btn-sm" onClick={() => p.onAccept(issue.id)}>Accept</button>
+            <button className="btn btn-quiet btn-sm" onClick={() => p.onDismiss(issue.id)}>Dismiss</button>
+          </div>
+        </div>
+      ) : (
+        <p className="sugg-body muted small">Looking good — no suggestions.</p>
+      )}
     </div>
   );
 }

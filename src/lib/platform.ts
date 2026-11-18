@@ -30,7 +30,17 @@ export async function saveApiKey(provider: Provider, key: string): Promise<void>
       /* storage blocked: key lives for this session only */
     }
   }
+  announceKeysChanged();
+}
+
+/** Tell this window and every other Matra window (they share localStorage) that keys changed. */
+function announceKeysChanged() {
   window.dispatchEvent(new CustomEvent("matra:keys-changed"));
+  try {
+    localStorage.setItem("matra.keysVersion", String(Date.now()));
+  } catch {
+    /* ignore */
+  }
 }
 
 export async function clearApiKey(provider: Provider): Promise<void> {
@@ -42,7 +52,7 @@ export async function clearApiKey(provider: Provider): Promise<void> {
       /* ignore */
     }
   }
-  window.dispatchEvent(new CustomEvent("matra:keys-changed"));
+  announceKeysChanged();
 }
 
 /** The key for the active provider. Re-read when keys change or the window regains focus. */
@@ -55,12 +65,15 @@ export function useApiKey(provider: Provider): [string | null, (k: string | null
         .then((k) => alive && setKey(k))
         .catch(() => alive && setKey(null));
     load();
+    const onStorage = (e: StorageEvent) => e.key === "matra.keysVersion" && load();
     window.addEventListener("matra:keys-changed", load);
     window.addEventListener("focus", load);
+    window.addEventListener("storage", onStorage);
     return () => {
       alive = false;
       window.removeEventListener("matra:keys-changed", load);
       window.removeEventListener("focus", load);
+      window.removeEventListener("storage", onStorage);
     };
   }, [provider]);
   return [key, setKey];

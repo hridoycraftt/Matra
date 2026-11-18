@@ -617,7 +617,6 @@ kbd { font: 11px var(--font-ui); color: var(--ink-3); margin-left: auto; }
   border-bottom: 1px solid var(--line);
   flex: none;
 }
-html.in-app .mini-head { padding-left: 76px; } /* traffic lights */
 .mini-title { display: flex; flex-direction: column; flex: 1; min-width: 0; line-height: 1.25; }
 .mini-title span { font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mini-text {
@@ -686,3 +685,53 @@ html.is-badge, html.is-badge body { background: transparent; overflow: hidden; }
 html:has(.mini) body { overflow: hidden; }
 .mini .panel.panel-compact { overflow: auto; border-top: 0; padding: 10px 12px 14px; }
 .mini .editor-backdrop, .mini .editor-input { font-size: 14px; }
+
+/* The panel window has no title bar: Matra draws its own rounded surface. */
+html.is-panel, html.is-panel body { background: transparent; }
+html.is-panel .mini {
+  height: calc(100% - 2px);
+  margin: 1px;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 0 0 1px var(--line-2);
+}
+
+/* ============ suggestion card (opens by itself beside the field) ============ */
+.sugg {
+  margin: 1px;
+  border-radius: 12px;
+  background: var(--page);
+  box-shadow: 0 0 0 1px var(--line-2);
+  overflow: hidden;
+  animation: sheet-in 200ms var(--ease) both;
+}
+.sugg-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 8px 8px 12px;
+  border-bottom: 1px solid var(--line);
+}
+.sugg-count { flex: 1; font-weight: 600; font-size: 12.5px; }
+.sugg-nav { display: inline-flex; align-items: center; gap: 2px; }
+.sugg-nav .icon-btn { width: 22px; height: 22px; font-size: 16px; line-height: 1; }
+.sugg-body { padding: 10px 12px 12px; margin: 0; }
+.sugg-title { display: flex; align-items: center; gap: 6px; font-weight: 600; }
+.sugg-fix { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; font-size: 15px; }
+.sugg-fix del { color: var(--ink-3); text-decoration-color: var(--c-correctness); }
+.sugg-chip {
+  border: 0;
+  border-radius: 6px;
+  padding: 3px 9px;
+  font-weight: 600;
+  font-size: 15px;
+  color: #fff;
+  background: var(--brand);
+}
+.sugg-chip:hover { background: var(--brand-hover); }
+.sugg-chip-clarity { background: var(--c-clarity); }
+.sugg-chip-engagement { background: var(--c-engagement); }
+.sugg-chip-delivery { background: #8a5a06; }
+.sugg-why { margin: 8px 0 0; color: var(--ink-2); font-size: 12.5px; }
+.sugg-actions { display: flex; gap: 6px; margin-top: 10px; }
+html.is-card, html.is-card body { background: transparent; overflow: hidden; height: auto; }

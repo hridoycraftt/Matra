@@ -7,7 +7,7 @@ import { SidePanel } from "./components/SidePanel";
 import { clearApiKey, inApp, onAppEvent, saveApiKey, useApiKey, useSettings } from "./lib/platform";
 import { computeStats, formatMinutes } from "./lib/stats";
 import { docTitle, loadActiveId, loadDocs, newDoc, saveActiveId, saveDocs } from "./lib/storage";
-import type { MatraDoc } from "./lib/types";
+import { PROVIDERS, type MatraDoc } from "./lib/types";
 import { useAssistant, useSelectionWords } from "./lib/useAssistant";
 import { checkForUpdate, type UpdateState } from "./lib/updater";
 import { configureEverywhere } from "./lib/everywhere";
@@ -201,6 +201,7 @@ export default function App() {
         onDismiss={a.dismiss}
         onAcceptAll={a.acceptAll}
         hasKey={!!apiKey}
+        providerLabel={PROVIDERS.find((x) => x.id === settings.provider)!.label}
         onOpenSettings={() => setSettingsOpen(true)}
         writer={a.writer}
         selectionWords={selectionWords}

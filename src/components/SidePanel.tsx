@@ -33,6 +33,7 @@ interface Props {
   onDismiss(id: string): void;
   onAcceptAll(category: Category | "all"): void;
   hasKey: boolean;
+  providerLabel: string;
   onOpenSettings(): void;
   writer: WriterView | null;
   selectionWords: number;
@@ -60,7 +61,7 @@ export function SidePanel(p: Props) {
         <div className="empty">
           <LogoMark />
           <h3>Connect Matra's AI</h3>
-          <p>Add your Anthropic API key once. It is stored in your Mac's Keychain, never in a file.</p>
+          <p>Add your {p.providerLabel} API key once. It is stored in your Mac's Keychain, never in a file.</p>
           <button className="btn btn-primary" onClick={p.onOpenSettings}>
             Open Settings
           </button>

@@ -21,6 +21,7 @@ async function whichView(): Promise<string> {
 if (inApp) document.documentElement.classList.add("in-app");
 
 whichView().then((view) => {
+  if (view === "panel") document.documentElement.classList.add("is-panel");
   const root = view === "panel" ? <Panel /> : view === "badge" ? <Badge /> : <App />;
   createRoot(document.getElementById("root")!).render(
     <StrictMode>

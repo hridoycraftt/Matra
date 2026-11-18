@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { showPanel, type BadgeState } from "./lib/everywhere";
+import { openPanel, type BadgeState } from "./lib/everywhere";
 import { inApp, onAppEvent } from "./lib/platform";
 
 /** The small floating button that sits on the text field in other apps. */
@@ -21,7 +21,7 @@ export default function Badge() {
           : "Open Matra";
 
   return (
-    <button className={`badge-btn badge-${state.status}`} aria-label={label} title={label} onClick={() => showPanel(true)}>
+    <button className={`badge-btn badge-${state.status}`} aria-label={label} title={label} onClick={() => openPanel(state.status === "issues" ? "card" : "full")}>
       {state.status === "issues" ? (
         <span className="badge-count">{state.count > 99 ? "99+" : state.count}</span>
       ) : state.status === "clean" ? (

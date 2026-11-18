@@ -37,7 +37,25 @@ export function configureEverywhere(s: Settings) {
 
 export const currentField = () => (inApp ? invoke<FieldInfo | null>("current_field") : Promise.resolve(null));
 export const writeField = (text: string) => (inApp ? invoke<string>("write_field", { text }) : Promise.resolve("preview"));
-export const showPanel = (focus: boolean) => (inApp ? invoke("show_panel", { focus }) : Promise.resolve());
+export type PanelMode = "card" | "full";
+
+/** Show the panel next to the field. In "card" mode it is a small single-suggestion card. */
+export const showPanel = (focus: boolean, mode: PanelMode, height?: number) =>
+  inApp ? invoke("show_panel", { focus, mode, height }) : Promise.resolve();
+
+/** Ask the panel window (the checker) to switch mode and show itself. Used by the badge. */
+export async function openPanel(mode: PanelMode) {
+  if (!inApp) return;
+  const { emitTo } = await import("@tauri-apps/api/event");
+  await emitTo("panel", "matra://mode", mode);
+  await showPanel(true, mode);
+}
+
+/** Show or hide the badge on the field (it only appears after the user has typed). */
+export const setBadge = (visible: boolean) => (inApp ? invoke("set_badge", { visible }) : Promise.resolve());
+
+/** Give keyboard focus back to the app the user is writing in, keeping the panel open. */
+export const focusSource = () => (inApp ? invoke("focus_source") : Promise.resolve());
 export const hidePanel = () => (inApp ? invoke("hide_panel") : Promise.resolve());
 export const openMain = (settings: boolean) => (inApp ? invoke("open_main", { settings }) : Promise.resolve());
 

@@ -152,3 +152,28 @@ test("floating panel preview checks text from another app", async ({ page }) => 
   await page.locator(".card", { hasText: "Agreement" }).getByRole("button", { name: "Accept" }).click();
   await expect(page.getByLabel("Document text")).toHaveValue(/I have attached/);
 });
+
+test("suggestion card shows one fix at a time and applies it", async ({ page }) => {
+  await mockGemini(page, {
+    check: {
+      language: "en",
+      score: 61,
+      tone_labels: [],
+      tone_summary: "",
+      issues: [
+        { category: "correctness", original: "you're", replacement: "your", prefix: "Thank you for ", title: "Wrong word", explanation: "Possessive." },
+        { category: "correctness", original: "has", replacement: "have", prefix: "I ", title: "Agreement", explanation: "I have." },
+      ],
+    },
+  });
+  await page.goto("/?view=panel&mode=card");
+  await expect(page.getByText("2 suggestions")).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByText("1/2")).toBeVisible();
+  await page.getByRole("button", { name: "Next suggestion" }).click();
+  await expect(page.locator(".sugg-title")).toContainText("Agreement");
+  await page.getByRole("button", { name: "Accept", exact: true }).click();
+  await expect(page.getByText("1 suggestion", { exact: true })).toBeVisible();
+  // The card is small: it fits in a 340px-wide window without scrolling.
+  const box = await page.locator(".sugg").boundingBox();
+  expect(box!.height).toBeLessThan(240);
+});

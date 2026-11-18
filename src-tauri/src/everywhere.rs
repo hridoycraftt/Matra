@@ -25,6 +25,8 @@ pub struct State {
     pub auto_open: AtomicBool,
     /// Whether a paste fallback should replace the whole field (true) or only the selection.
     pub capture_whole: AtomicBool,
+    /// Set by the checker: show the badge only while there is something to show.
+    pub badge_wanted: AtomicBool,
     pub ignored_apps: Mutex<Vec<String>>,
     pub last: Mutex<Option<FieldInfo>>,
     #[cfg(target_os = "macos")]
@@ -54,15 +56,18 @@ pub fn configure(state: &State, cfg: Config) {
         .collect();
 }
 
+/// Move the badge to the field's bottom-right corner. It is only shown once the
+/// panel's checker asks for it (after the user has typed), never just on focus.
 pub fn place_badge<R: Runtime>(app: &AppHandle<R>, f: &FieldInfo) {
-    if let Some(badge) = app.get_webview_window(BADGE) {
-        // Bottom-right corner of the field, just inside it, like a caret-side helper.
-        let x = f.x + f.width - BADGE_SIZE - 6.0;
-        let y = f.y + f.height - BADGE_SIZE - 6.0;
-        let _ = badge.set_position(LogicalPosition::new(x.max(0.0), y.max(0.0)));
-        if !badge.is_visible().unwrap_or(false) {
-            let _ = badge.show();
-        }
+    let Some(badge) = app.get_webview_window(BADGE) else { return };
+    let r = badge_rect(f);
+    let _ = badge.set_position(LogicalPosition::new(r.x.max(0.0), r.y.max(0.0)));
+    let want = app.state::<State>().badge_wanted.load(Ordering::Relaxed);
+    let shown = badge.is_visible().unwrap_or(false);
+    if want && !shown {
+        let _ = badge.show();
+    } else if !want && shown {
+        let _ = badge.hide();
     }
 }
 
@@ -74,32 +79,157 @@ pub fn hide_badge<R: Runtime>(app: &AppHandle<R>) {
     }
 }
 
-/// Put the panel beside the field: right of it if there is room, otherwise left, otherwise over it.
-pub fn place_panel<R: Runtime>(app: &AppHandle<R>, focus: bool) {
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Rect {
+    pub x: f64,
+    pub y: f64,
+    pub w: f64,
+    pub h: f64,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum PanelMode {
+    /// One suggestion at a time, small, next to the badge (like an inline suggestion card).
+    Card,
+    /// The full assistant: suggestions, score, tone, rewrite, write with AI.
+    Full,
+}
+
+pub const CARD_WIDTH: f64 = 340.0;
+pub const FULL_SIZE: (f64, f64) = (400.0, 560.0);
+const GAP: f64 = 8.0;
+const MARGIN: f64 = 8.0;
+
+/// Where to put a window of size (w, h) next to `anchor` so it stays fully on `screen`.
+/// Tries each side in order and takes the first that fits; otherwise the side with the
+/// most room, clamped to the screen. Pure, so it is unit-tested.
+pub fn place(anchor: Rect, w: f64, h: f64, screen: Rect, mode: PanelMode) -> (f64, f64) {
+    let right_edge = screen.x + screen.w - MARGIN;
+    let bottom_edge = screen.y + screen.h - MARGIN;
+    let clamp_x = |x: f64| x.max(screen.x + MARGIN).min(right_edge - w);
+    let clamp_y = |y: f64| y.max(screen.y + MARGIN).min(bottom_edge - h);
+
+    let below = (clamp_x(anchor.x + anchor.w - w), anchor.y + anchor.h + GAP);
+    let above = (clamp_x(anchor.x + anchor.w - w), anchor.y - GAP - h);
+    let right = (anchor.x + anchor.w + GAP, clamp_y(anchor.y));
+    let left = (anchor.x - GAP - w, clamp_y(anchor.y));
+
+    let fits = |(x, y): (f64, f64)| {
+        x >= screen.x + MARGIN - 0.5 && y >= screen.y + MARGIN - 0.5 && x + w <= right_edge + 0.5 && y + h <= bottom_edge + 0.5
+    };
+    let order = match mode {
+        PanelMode::Card => [below, above, right, left],
+        PanelMode::Full => [right, left, below, above],
+    };
+    if let Some(p) = order.into_iter().find(|p| fits(*p)) {
+        return p;
+    }
+    // Nothing fits fully: use the side with the most room and keep it on screen.
+    let room_below = bottom_edge - (anchor.y + anchor.h);
+    let room_above = anchor.y - (screen.y + MARGIN);
+    let y = if room_below >= room_above { anchor.y + anchor.h + GAP } else { anchor.y - GAP - h };
+    (clamp_x(anchor.x + anchor.w - w), clamp_y(y))
+}
+
+/// The usable area (without menu bar and Dock) of the screen that contains the point, in points.
+fn screen_at<R: Runtime>(app: &AppHandle<R>, x: f64, y: f64) -> Rect {
+    let monitors = app.available_monitors().unwrap_or_default();
+    for m in &monitors {
+        let s = m.scale_factor();
+        let wa = m.work_area();
+        let r = Rect {
+            x: wa.position.x as f64 / s,
+            y: wa.position.y as f64 / s,
+            w: wa.size.width as f64 / s,
+            h: wa.size.height as f64 / s,
+        };
+        let full_x = m.position().x as f64 / s;
+        let full_y = m.position().y as f64 / s;
+        let full_w = m.size().width as f64 / s;
+        let full_h = m.size().height as f64 / s;
+        if x >= full_x && x < full_x + full_w && y >= full_y && y < full_y + full_h {
+            return r;
+        }
+    }
+    Rect { x: 0.0, y: 25.0, w: 1440.0, h: 850.0 }
+}
+
+/// The badge's spot on the field: the anchor for the suggestion card.
+pub fn badge_rect(f: &FieldInfo) -> Rect {
+    Rect { x: f.x + f.width - BADGE_SIZE - 6.0, y: f.y + f.height - BADGE_SIZE - 6.0, w: BADGE_SIZE, h: BADGE_SIZE }
+}
+
+/// Show the panel next to the field, sized for the mode, always fully on screen.
+pub fn place_panel<R: Runtime>(app: &AppHandle<R>, focus: bool, mode: PanelMode, height: Option<f64>) {
     let Some(panel) = app.get_webview_window(PANEL) else { return };
+    let (w, h) = match mode {
+        PanelMode::Card => (CARD_WIDTH, height.unwrap_or(190.0).clamp(120.0, 420.0)),
+        PanelMode::Full => FULL_SIZE,
+    };
+    let _ = panel.set_size(tauri::LogicalSize::new(w, h));
     let last = app.state::<State>().last.lock().unwrap().clone();
     if let Some(f) = last {
-        let (pw, ph) = (400.0, 560.0);
-        let screen_w = panel
-            .current_monitor()
-            .ok()
-            .flatten()
-            .map(|m| m.size().width as f64 / m.scale_factor())
-            .unwrap_or(1440.0);
-        let x = if f.x + f.width + 12.0 + pw <= screen_w {
-            f.x + f.width + 12.0
-        } else if f.x - 12.0 - pw >= 0.0 {
-            f.x - 12.0 - pw
-        } else {
-            (screen_w - pw - 12.0).max(0.0)
+        let anchor = match mode {
+            PanelMode::Card => badge_rect(&f),
+            PanelMode::Full => Rect { x: f.x, y: f.y, w: f.width, h: f.height },
         };
-        let y = (f.y).max(30.0);
+        let screen = screen_at(app, anchor.x, anchor.y);
+        let (x, y) = place(anchor, w, h, screen, mode);
         let _ = panel.set_position(LogicalPosition::new(x, y));
-        let _ = ph;
     }
     let _ = panel.show();
     if focus {
         let _ = panel.set_focus();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    const SCREEN: Rect = Rect { x: 0.0, y: 25.0, w: 1440.0, h: 850.0 };
+
+    fn inside(x: f64, y: f64, w: f64, h: f64) -> bool {
+        x >= SCREEN.x && y >= SCREEN.y && x + w <= SCREEN.x + SCREEN.w && y + h <= SCREEN.y + SCREEN.h
+    }
+
+    #[test]
+    fn card_opens_below_when_there_is_room() {
+        let a = Rect { x: 600.0, y: 200.0, w: 30.0, h: 30.0 };
+        let (x, y) = place(a, 340.0, 190.0, SCREEN, PanelMode::Card);
+        assert!(y > a.y);
+        assert!(inside(x, y, 340.0, 190.0));
+    }
+
+    #[test]
+    fn card_flips_above_near_the_bottom() {
+        let a = Rect { x: 600.0, y: 820.0, w: 30.0, h: 30.0 };
+        let (x, y) = place(a, 340.0, 190.0, SCREEN, PanelMode::Card);
+        assert!(y + 190.0 <= a.y);
+        assert!(inside(x, y, 340.0, 190.0));
+    }
+
+    #[test]
+    fn card_stays_on_screen_at_the_right_edge() {
+        let a = Rect { x: 1420.0, y: 400.0, w: 30.0, h: 30.0 };
+        let (x, y) = place(a, 340.0, 190.0, SCREEN, PanelMode::Card);
+        assert!(inside(x, y, 340.0, 190.0));
+    }
+
+    #[test]
+    fn full_panel_goes_left_when_right_is_full() {
+        let a = Rect { x: 900.0, y: 300.0, w: 500.0, h: 300.0 };
+        let (x, _) = place(a, 400.0, 560.0, SCREEN, PanelMode::Full);
+        assert!(x + 400.0 <= a.x);
+    }
+
+    #[test]
+    fn full_panel_never_leaves_the_screen_for_a_field_at_the_bottom() {
+        // A chat box along the bottom of a full-width window: no side fits.
+        let a = Rect { x: 20.0, y: 780.0, w: 1400.0, h: 80.0 };
+        let (x, y) = place(a, 400.0, 560.0, SCREEN, PanelMode::Full);
+        assert!(inside(x, y, 400.0, 560.0), "{x},{y}");
+        assert!(y + 560.0 <= a.y + 1.0);
     }
 }
 
@@ -151,6 +281,7 @@ pub fn start_watcher<R: Runtime>(app: AppHandle<R>) {
             let same_element = state.element.lock().unwrap().as_ref() == Some(&field.element);
             if !same_element {
                 field_counter += 1;
+                state.badge_wanted.store(false, Ordering::Relaxed);
             }
             let info = FieldInfo {
                 app: field.app.clone(),

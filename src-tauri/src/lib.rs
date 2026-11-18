@@ -99,8 +99,18 @@ async fn write_field(app: AppHandle, text: String) -> Result<String, String> {
 }
 
 #[tauri::command]
-fn show_panel(app: AppHandle, focus: bool) {
-    everywhere::place_panel(&app, focus);
+fn show_panel(app: AppHandle, focus: bool, mode: everywhere::PanelMode, height: Option<f64>) {
+    everywhere::place_panel(&app, focus, mode, height);
+}
+
+#[tauri::command]
+fn set_badge(app: AppHandle, visible: bool) {
+    app.state::<State>().badge_wanted.store(visible, Ordering::Relaxed);
+    let last = app.state::<State>().last.lock().unwrap().clone();
+    match last {
+        Some(f) => everywhere::place_badge(&app, &f),
+        None => everywhere::hide_badge(&app),
+    }
 }
 
 /// Close the panel and give keyboard focus back to the app the user was writing in.
@@ -109,6 +119,13 @@ fn hide_panel(app: AppHandle) {
     if let Some(p) = app.get_webview_window(PANEL) {
         let _ = p.hide();
     }
+    if let Some(f) = app.state::<State>().last.lock().unwrap().as_ref() {
+        keys::activate_pid(f.pid);
+    }
+}
+
+#[tauri::command]
+fn focus_source(app: AppHandle) {
     if let Some(f) = app.state::<State>().last.lock().unwrap().as_ref() {
         keys::activate_pid(f.pid);
     }
@@ -137,7 +154,8 @@ fn on_shortcut(app: &AppHandle) {
     let has_field = state.last.lock().unwrap().is_some();
     if has_field {
         state.capture_whole.store(true, Ordering::Relaxed);
-        everywhere::place_panel(app, true);
+        let _ = app.emit_to(PANEL, "matra://mode", "full");
+        everywhere::place_panel(app, true, everywhere::PanelMode::Full, None);
         return;
     }
     let app = app.clone();
@@ -172,11 +190,12 @@ fn on_shortcut(app: &AppHandle) {
                 };
                 *state.last.lock().unwrap() = Some(info.clone());
                 let _ = app.emit_to(PANEL, "matra://field", &info);
-                everywhere::place_panel(&app, true);
+                let _ = app.emit_to(PANEL, "matra://mode", "full");
+                everywhere::place_panel(&app, true, everywhere::PanelMode::Full, None);
             }
             Err(e) => {
                 let _ = app.emit_to(PANEL, "matra://error", e);
-                everywhere::place_panel(&app, true);
+                everywhere::place_panel(&app, true, everywhere::PanelMode::Full, None);
             }
         }
     });
@@ -239,6 +258,8 @@ pub fn run() {
             current_field,
             write_field,
             show_panel,
+            set_badge,
+            focus_source,
             hide_panel,
             open_main
         ])
