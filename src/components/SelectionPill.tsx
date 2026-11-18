@@ -15,9 +15,12 @@ export function SelectionPill({
   y,
   onRun,
   onClose,
+  inline,
 }: {
   x: number;
   y: number;
+  /** Render in place (inside the floating card) rather than positioned over the editor. */
+  inline?: boolean;
   onRun(mode: RewriteMode, custom?: string): void;
   onClose(): void;
 }) {
@@ -27,7 +30,12 @@ export function SelectionPill({
   const keep = (e: React.MouseEvent) => e.preventDefault();
 
   return (
-    <div className="sel-pill" style={{ left: x, top: y }} role="toolbar" aria-label="Rewrite the selected text">
+    <div
+      className={`sel-pill${inline ? " is-inline" : ""}`}
+      style={inline ? undefined : { left: x, top: y }}
+      role="toolbar"
+      aria-label="Rewrite the selected text"
+    >
       {asking ? (
         <form
           className="sel-ask"

@@ -179,6 +179,26 @@ impl Element {
         (ok && r.size.width > 0.0 && r.size.height > 0.0).then_some((r.origin.x, r.origin.y, r.size.width, r.size.height))
     }
 
+    /// The selection as (start, length) in UTF-16 units; length 0 is a plain caret.
+    pub fn selection(&self) -> Option<(usize, usize)> {
+        let v = self.copy_attr("AXSelectedTextRange")?;
+        let mut r = CFRange::default();
+        let ok = unsafe { AXValueGetValue(v.as_CFTypeRef(), AX_VALUE_CFRANGE, &mut r as *mut _ as *mut c_void) };
+        (ok && r.location >= 0 && r.length >= 0).then_some((r.location as usize, r.length as usize))
+    }
+
+    /// Put the caret at a position (after Matra changed the text, e.g. a snippet).
+    pub fn set_caret(&self, pos: usize) -> bool {
+        let range = CFRange { location: pos as isize, length: 0 };
+        let v = unsafe { AXValueCreate(AX_VALUE_CFRANGE, &range as *const _ as *const c_void) };
+        if v.is_null() {
+            return false;
+        }
+        let v = unsafe { CFType::wrap_under_create_rule(v) };
+        let attr = CFString::new("AXSelectedTextRange");
+        unsafe { AXUIElementSetAttributeValue(self.0, attr.as_concrete_TypeRef(), v.as_CFTypeRef()) == AX_OK }
+    }
+
     /// Caret position (start of the selection) in UTF-16 units.
     pub fn caret(&self) -> Option<usize> {
         let v = self.copy_attr("AXSelectedTextRange")?;

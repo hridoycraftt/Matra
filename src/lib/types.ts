@@ -114,6 +114,8 @@ export interface Settings {
   onboarded: boolean;
   /** The writer's voice, learned from their own samples, used for rewrites and new writing. */
   voice: { samples: string; profile: string; traits: string[]; enabled: boolean };
+  /** Show rewrite actions when text is selected in another app. */
+  selectionActions: boolean;
 }
 
 /** Identifies one exact change, for "Incorrect suggestion". */
@@ -164,6 +166,7 @@ export const DEFAULT_SETTINGS: Settings = {
   underlineStyle: "color",
   onboarded: false,
   voice: { samples: "", profile: "", traits: [], enabled: false },
+  selectionActions: true,
 };
 
 export function activeModel(s: Settings): string {

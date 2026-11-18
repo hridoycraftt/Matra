@@ -348,6 +348,14 @@ export function OtherApps({ settings, onSettings }: SettingsProps) {
             </span>
           </Row>
         )}
+        <Row label="Rewrite selected text" detail="Select text in any app to get Improve, Shorten, Formal and “Tell Matra…”.">
+          <Switch
+            label="Rewrite selected text"
+            disabled={!settings.everywhere}
+            checked={settings.selectionActions}
+            onChange={(v) => onSettings({ ...settings, selectionActions: v })}
+          />
+        </Row>
         <Row label="Don't check in" detail="App names, separated by commas.">
           <input
             className="field-input"

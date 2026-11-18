@@ -429,3 +429,12 @@ test("your voice: learn from samples, then rewrites use it", async ({ page }) =>
   await expect(page.locator(".writer-output")).toHaveText("Short and warm.");
   expect(JSON.stringify(log.requests.at(-1))).toContain("Write in the user's own voice");
 });
+
+test("selected text in another app: pick an action and get a rewrite to replace", async ({ page }) => {
+  await mockGemini(page, { written: "Thanks for your quick reply." });
+  await page.goto("/?view=panel&mode=card&sel");
+  const card = page.getByRole("dialog", { name: "Rewrite the selected text" });
+  await card.getByRole("button", { name: "Improve" }).click();
+  await expect(card.locator(".writer-output")).toHaveText("Thanks for your quick reply.");
+  await expect(card.getByRole("button", { name: "Replace" })).toBeVisible();
+});

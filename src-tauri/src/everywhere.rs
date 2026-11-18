@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, LogicalPosition, Manager, Runtime};
 
-#[derive(Clone, Serialize, PartialEq, Debug)]
+#[derive(Clone, Serialize, Deserialize, PartialEq, Debug)]
 pub struct FieldInfo {
     pub app: String,
     pub pid: i32,
@@ -18,6 +18,14 @@ pub struct FieldInfo {
     pub height: f64,
     /// Changes whenever focus moves to a different text field.
     pub field_id: u64,
+    /// Caret or selection start, in UTF-16 units (JavaScript string indices).
+    #[serde(default)]
+    pub sel_start: Option<usize>,
+    #[serde(default)]
+    pub sel_len: usize,
+    /// Screen rectangle of the selection, when text is selected.
+    #[serde(default)]
+    pub sel_rect: Option<(f64, f64, f64, f64)>,
 }
 
 /// A suggestion's span in the field, to underline in place.
@@ -409,7 +417,18 @@ pub fn start_watcher<R: Runtime>(app: AppHandle<R>) {
                 width: field.width,
                 height: field.height,
                 field_id: field_counter,
+                sel_start: None,
+                sel_len: 0,
+                sel_rect: None,
             };
+            let mut info = info;
+            if let Some((start, len)) = field.element.selection() {
+                info.sel_start = Some(start);
+                info.sel_len = len;
+                if len > 0 {
+                    info.sel_rect = field.element.bounds_for_range(start, len);
+                }
+            }
             let changed = state.last.lock().unwrap().as_ref() != Some(&info);
             if changed {
                 state.capture_whole.store(true, Ordering::Relaxed);

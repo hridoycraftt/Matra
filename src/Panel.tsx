@@ -12,6 +12,7 @@ import {
   openMain,
   sendBadge,
   setBadge,
+  setCaret,
   setUnderlines,
   showPanel,
   writeField,
@@ -22,6 +23,10 @@ import {
 import { inApp, onAppEvent, useApiKey, useSettings } from "./lib/platform";
 import { CATEGORIES, DEFAULT_GOALS, PROVIDERS, type Goals, type Issue } from "./lib/types";
 import { useAssistant, useSelectionWords } from "./lib/useAssistant";
+import { expandSnippet } from "./lib/snippets";
+import { streamRewrite, friendlyError } from "./lib/ai";
+import { SelectionPill } from "./components/SelectionPill";
+import type { RewriteMode } from "./lib/types";
 import { useUnderlineStyle } from "./lib/useUnderlineStyle";
 
 const GOALS_KEY = "matra.panelGoals";
@@ -75,6 +80,17 @@ export default function Panel() {
   const autoOpened = useRef<string | null>(null);
   const textRef = useRef(text);
   textRef.current = text;
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
+  /** Text selected in the other app, offered for a quick rewrite. */
+  const [selection, setSelection] = useState<{ start: number; len: number; text: string } | null>(() => {
+    // Browser preview: ?view=panel&mode=card&sel shows the rewrite card for a sample selection.
+    if (inApp || !new URLSearchParams(location.search).has("sel")) return null;
+    const t = "Thank you for you're quick reply.";
+    return { start: PREVIEW_FIELD.text.indexOf(t), len: t.length, text: t };
+  });
+  const selTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const selKey = useRef("");
 
   const a = useAssistant({
     text,
@@ -153,9 +169,36 @@ export default function Panel() {
           a.syncText(f.text);
           setText(f.text);
           fromField.current = false;
+          // A snippet trigger typed in the other app: put the snippet in place.
+          const snippets = settingsRef.current.snippets;
+          if (snippets.length && f.sel_start != null) {
+            const hit = expandSnippet(f.text, f.sel_start, snippets);
+            if (hit) writeField(hit.value).then(() => setCaret(hit.caret));
+          }
         }
         return f;
       });
+      followSelection(f);
+    };
+    /** Text selected in the other app for a moment: offer the rewrite pill right above it. */
+    const followSelection = (f: FieldInfo) => {
+      const len = f.sel_len ?? 0;
+      const key = `${f.field_id}:${f.sel_start}:${len}`;
+      if (key === selKey.current) return;
+      selKey.current = key;
+      clearTimeout(selTimer.current);
+      if (!settingsRef.current.selectionActions || len < 3 || f.sel_start == null || !f.sel_rect) return;
+      const start = f.sel_start;
+      const rect = f.sel_rect;
+      selTimer.current = setTimeout(() => {
+        const picked = f.text.slice(start, start + len);
+        if (!picked.trim()) return;
+        setSelection({ start, len, text: picked });
+        setMode("card");
+        setShown(true);
+        anchor.current = { x: rect[0], y: rect[1], w: rect[2], h: rect[3] };
+        showPanel(false, "card", undefined, anchor.current);
+      }, 700);
     };
     currentField().then((f) => f && apply(f));
     const offs = [
@@ -227,6 +270,29 @@ export default function Panel() {
   }, []);
 
   const providerLabel = PROVIDERS.find((x) => x.id === settings.provider)!.label;
+
+  if (mode === "card" && selection) {
+    return (
+      <SelectionCard
+        selected={selection.text}
+        onRun={(m, custom, on, signal) =>
+          streamRewrite(apiKey, { text: selection.text, mode: m, custom, goals, settings }, on, signal)
+        }
+        onReplace={(out) => {
+          const full = textRef.current;
+          const next = full.slice(0, selection.start) + out + full.slice(selection.start + selection.len);
+          writeField(next).then(() => setCaret(selection.start + out.length));
+          setSelection(null);
+          close();
+        }}
+        onClose={() => {
+          setSelection(null);
+          close();
+        }}
+        onResize={(h) => showPanel(false, "card", h, anchor.current)}
+      />
+    );
+  }
 
   if (mode === "card") {
     return (
@@ -485,6 +551,88 @@ function SuggestionCard(p: {
           <strong>Looking good</strong>
           <span className="muted small">No suggestions in {p.app} right now.</span>
         </div>
+      )}
+    </div>
+  );
+}
+
+/** Rewrite text selected in another app: pick an action, see the result, replace it in place. */
+function SelectionCard(p: {
+  selected: string;
+  onRun(mode: RewriteMode, custom: string | undefined, onText: (s: string) => void, signal: AbortSignal): Promise<string>;
+  onReplace(text: string): void;
+  onClose(): void;
+  onResize(height: number): void;
+}) {
+  const [out, setOut] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const last = useRef<[RewriteMode, string | undefined] | null>(null);
+  const ctrl = useRef<AbortController | null>(null);
+  const root = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    const el = root.current;
+    if (!el) return;
+    const report = () => p.onResize(Math.ceil(el.getBoundingClientRect().height));
+    report();
+    const ro = new ResizeObserver(report);
+    ro.observe(el);
+    return () => ro.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    document.documentElement.classList.add("is-card");
+    return () => document.documentElement.classList.remove("is-card");
+  }, []);
+
+  const run = async (mode: RewriteMode, custom?: string) => {
+    last.current = [mode, custom];
+    ctrl.current?.abort();
+    const c = new AbortController();
+    ctrl.current = c;
+    setBusy(true);
+    setError(null);
+    setOut("");
+    try {
+      setOut(await p.onRun(mode, custom, setOut, c.signal));
+    } catch (e) {
+      if (!c.signal.aborted) setError(friendlyError(e).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="sugg sel-card" ref={root} role="dialog" aria-label="Rewrite the selected text">
+      {!out && !busy && !error ? (
+        <div className="sel-card-pill">
+          <SelectionPill x={0} y={0} inline onRun={run} onClose={p.onClose} />
+        </div>
+      ) : (
+        <>
+          <header className="sugg-head" data-tauri-drag-region>
+            <LogoMark size={16} />
+            <span className="sugg-count" data-tauri-drag-region>{busy ? "Writing…" : "Rewrite"}</span>
+            <button className="icon-btn" aria-label="Close (Esc)" onClick={p.onClose}><IconX /></button>
+          </header>
+          <div className="sugg-body">
+            {error ? (
+              <div className="notice notice-error" role="alert">{error}</div>
+            ) : (
+              <div className={`writer-output sel-out${busy ? " is-streaming" : ""}`} aria-live="polite">{out}</div>
+            )}
+            {!busy && (
+              <div className="sugg-actions">
+                {out && <button className="btn btn-primary btn-sm" onClick={() => p.onReplace(out)}><IconCheck size={14} /> Replace</button>}
+                {last.current && (
+                  <button className="btn btn-quiet btn-sm" onClick={() => last.current && run(...last.current)}>Regenerate</button>
+                )}
+                <button className="btn btn-quiet btn-sm" onClick={p.onClose}>Cancel</button>
+              </div>
+            )}
+          </div>
+        </>
       )}
     </div>
   );

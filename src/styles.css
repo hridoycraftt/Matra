@@ -1216,3 +1216,6 @@ html.ul-patterns .overlay-delivery { border-bottom: 3px double var(--c-delivery)
 .badge-fixes:hover { background: #d13a3f; }
 .badge-wrap.is-dragging { cursor: grabbing; }
 .tile-orange { background: linear-gradient(180deg, #f39a5a, #e0702a); }
+.sel-pill.is-inline { position: static; box-shadow: none; animation: none; flex-wrap: wrap; }
+.sel-card-pill { padding: 2px; }
+.sel-out { min-height: 40px; max-height: 220px; overflow: auto; font-size: 14px; }

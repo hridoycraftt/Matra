@@ -171,6 +171,21 @@ fn hide_panel(app: AppHandle) {
     }
 }
 
+/// Move the caret in the field (after inserting a snippet there).
+#[tauri::command]
+fn set_caret(app: AppHandle, pos: usize) -> bool {
+    #[cfg(target_os = "macos")]
+    {
+        let el = app.state::<State>().element.lock().unwrap().clone();
+        el.map(|e| e.set_caret(pos)).unwrap_or(false)
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = (app, pos);
+        false
+    }
+}
+
 #[tauri::command]
 fn focus_source(app: AppHandle) {
     if let Some(f) = app.state::<State>().last.lock().unwrap().as_ref() {
@@ -234,6 +249,9 @@ fn on_shortcut(app: &AppHandle) {
                     width: 1.0,
                     height: 1.0,
                     field_id: u64::MAX,
+                    sel_start: None,
+                    sel_len: 0,
+                    sel_rect: None,
                 };
                 *state.last.lock().unwrap() = Some(info.clone());
                 let _ = app.emit_to(PANEL, "matra://field", &info);
@@ -312,6 +330,7 @@ pub fn run() {
             badge_drag,
             badge_width,
             focus_source,
+            set_caret,
             hide_panel,
             open_main
         ])

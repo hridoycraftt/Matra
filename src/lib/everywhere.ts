@@ -12,6 +12,11 @@ export interface FieldInfo {
   width: number;
   height: number;
   field_id: number;
+  /** Caret or selection start (JavaScript string index), when the app reports it. */
+  sel_start?: number | null;
+  sel_len?: number;
+  /** Selection rectangle on screen [x, y, w, h], when text is selected. */
+  sel_rect?: [number, number, number, number] | null;
 }
 
 export type BadgeState =
@@ -74,6 +79,9 @@ export const badgeWidth = (width: number) => (inApp ? invoke("badge_width", { wi
 
 /** Show or hide the badge on the field (it only appears after the user has typed). */
 export const setBadge = (visible: boolean) => (inApp ? invoke("set_badge", { visible }) : Promise.resolve());
+
+/** Move the caret in the other app's text box. */
+export const setCaret = (pos: number) => (inApp ? invoke<boolean>("set_caret", { pos }) : Promise.resolve(false));
 
 /** Give keyboard focus back to the app the user is writing in, keeping the panel open. */
 export const focusSource = () => (inApp ? invoke("focus_source") : Promise.resolve());
