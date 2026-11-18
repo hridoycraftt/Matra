@@ -1,5 +1,5 @@
 import { ApiError, GoogleGenAI } from "@google/genai";
-import { MatraAIError, type Backend } from "./types";
+import { MatraAIError, type Backend, type WebSource } from "./types";
 
 let cached: { key: string; client: GoogleGenAI } | null = null;
 function client(apiKey: string): GoogleGenAI {
@@ -90,6 +90,26 @@ export function googleBackend(apiKey: string, requested: string): Backend {
         );
         if (!res.text) throw new MatraAIError("The AI returned no result. Try again.", "other");
         return res.text;
+      } catch (err) {
+        if (signal?.aborted) throw err;
+        throw friendly(err);
+      }
+    },
+    async search({ system, user, signal }) {
+      try {
+        // Grounding with Google Search: Gemini searches, answers, and lists the pages it used.
+        const res = await withModel((m) =>
+          ai.models.generateContent({
+            model: m,
+            contents: user,
+            config: { systemInstruction: system, tools: [{ googleSearch: {} }], abortSignal: signal },
+          }),
+        );
+        const chunks = res.candidates?.[0]?.groundingMetadata?.groundingChunks ?? [];
+        const sources: WebSource[] = chunks
+          .map((c) => ({ title: c.web?.title ?? c.web?.uri ?? "", url: c.web?.uri ?? "" }))
+          .filter((s) => s.url);
+        return { text: res.text ?? "", sources };
       } catch (err) {
         if (signal?.aborted) throw err;
         throw friendly(err);

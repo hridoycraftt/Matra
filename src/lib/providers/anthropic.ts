@@ -1,7 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { AnthropicBeta } from "@anthropic-ai/sdk/resources/beta/beta";
 import type { BetaFallbacksParam } from "@anthropic-ai/sdk/resources/beta/messages/messages";
-import { MatraAIError, type Backend } from "./types";
+import type { BetaContentBlock, BetaMessageParam } from "@anthropic-ai/sdk/resources/beta/messages/messages";
+import { MatraAIError, type Backend, type WebSource } from "./types";
 
 let cached: { key: string; client: Anthropic } | null = null;
 function client(apiKey: string): Anthropic {
@@ -53,6 +54,43 @@ export function anthropicBackend(apiKey: string, model: string): Backend {
         const block = response.content.find((b) => b.type === "text");
         if (!block || block.type !== "text") throw new MatraAIError("The AI returned no result. Try again.", "other");
         return block.text;
+      } catch (err) {
+        if (signal?.aborted) throw err;
+        throw friendly(err);
+      }
+    },
+    async search({ system, user, signal }) {
+      try {
+        const messages: BetaMessageParam[] = [{ role: "user", content: user }];
+        const blocks: BetaContentBlock[] = [];
+        // Server-side web search; a long search can pause the turn, so continue it a few times.
+        for (let turn = 0; turn < 4; turn++) {
+          const response = await c.beta.messages.create(
+            {
+              model,
+              max_tokens: 16000,
+              ...fallbackParams(model),
+              system,
+              output_config: { effort: "low" },
+              tools: [{ type: "web_search_20260209", name: "web_search", max_uses: 5 }],
+              messages,
+            },
+            { signal },
+          );
+          if (response.stop_reason === "refusal") throw new MatraAIError("The AI declined this request.", "refusal");
+          blocks.push(...response.content);
+          if (response.stop_reason !== "pause_turn") break;
+          messages.push({ role: "assistant", content: response.content });
+        }
+        const sources: WebSource[] = [];
+        let text = "";
+        for (const b of blocks) {
+          if (b.type === "text") text += b.text;
+          if (b.type === "web_search_tool_result" && Array.isArray(b.content)) {
+            for (const r of b.content) sources.push({ title: r.title, url: r.url });
+          }
+        }
+        return { text, sources };
       } catch (err) {
         if (signal?.aborted) throw err;
         throw friendly(err);

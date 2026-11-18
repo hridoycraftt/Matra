@@ -348,3 +348,34 @@ test("Gemini: if the chosen model is missing for the key, Matra switches to one 
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("matra.settings.v1")!).googleModel);
   expect(saved).toBe("gemini-3.5-flash");
 });
+
+test("Agents: plagiarism check and citation finder show sources", async ({ page }) => {
+  await withKey(page);
+  const log = await mockClaude(page, {
+    check: {
+      originalPercent: 82,
+      summary: "One sentence matches a published page.",
+      matches: [{ quote: "a few mistakes", source: "Example article", url: "https://example.com/a", similarity: "close" }],
+      claims: [
+        {
+          claim: "Matra checks Bangla",
+          sources: [{ title: "Example", url: "https://example.com/b", citation: "Example. (2026). Matra. https://example.com/b" }],
+        },
+      ],
+    },
+  });
+  await page.goto("/");
+  await page.getByRole("tab", { name: "Agents" }).click();
+  await page.getByRole("button", { name: /Plagiarism check/ }).click();
+  await page.getByRole("button", { name: "Check for plagiarism" }).click();
+  await expect(page.getByText("About 82% looks original.")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Example article" })).toHaveAttribute("href", "https://example.com/a");
+  const body = JSON.stringify(log.requests[0]);
+  expect(body).toContain("web_search_20260209");
+
+  await page.getByRole("button", { name: /Citation finder/ }).click();
+  await page.getByRole("group", { name: "Citation style" }).getByRole("button", { name: "MLA" }).click();
+  await page.getByRole("button", { name: "Find sources" }).click();
+  await expect(page.getByText("Example. (2026). Matra. https://example.com/b")).toBeVisible();
+  expect(JSON.stringify(log.requests[1])).toContain("MLA");
+});

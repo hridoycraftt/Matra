@@ -1,4 +1,4 @@
-import { runJson } from "./ai";
+import { runJson, runSearch } from "./ai";
 import type { Goals, Settings } from "./types";
 
 export interface ReaderReaction {
@@ -73,4 +73,85 @@ export function estimateAI(apiKey: string | null, text: string, settings: Settin
     schema: AI_SCHEMA,
     signal,
   });
+}
+
+export interface PlagiarismResult {
+  originalPercent: number;
+  summary: string;
+  matches: { quote: string; source: string; url: string; similarity: "exact" | "close" | "paraphrase" }[];
+}
+
+export interface CitationResult {
+  claims: { claim: string; sources: { title: string; url: string; citation: string }[] }[];
+}
+
+/** Pull a JSON object out of a model answer that may wrap it in prose or a code fence. */
+export function extractJson<T>(text: string): T | null {
+  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+  const body = fenced ? fenced[1] : text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1);
+  try {
+    return JSON.parse(body) as T;
+  } catch {
+    return null;
+  }
+}
+
+/** Search the web for passages of the text that already exist online. */
+export async function checkPlagiarism(apiKey: string | null, text: string, settings: Settings, signal?: AbortSignal) {
+  const { text: answer, sources } = await runSearch(apiKey, settings, {
+    system: `You are Matra's plagiarism checker. Search the web for the most distinctive sentences of the user's text and report passages that appear in, or closely paraphrase, published pages. Only report matches you actually found in search results; never invent sources. ${LANG}`,
+    user: `Check this text. Answer with only a JSON object, no other text:\n{"originalPercent": <0-100, share of the text that looks original>, "summary": "<one sentence>", "matches": [{"quote": "<exact short quote from the text>", "source": "<page title>", "url": "<page url>", "similarity": "exact" | "close" | "paraphrase"}]}\nUse an empty "matches" list if nothing was found.\n\n<text>\n${text}\n</text>`,
+    signal,
+  });
+  const parsed = extractJson<PlagiarismResult>(answer);
+  if (!parsed) return { originalPercent: 100, summary: answer.trim().slice(0, 300) || "No matches found.", matches: [] };
+  // Keep only links the search actually returned, so a made-up URL never reaches the user.
+  const hosts = knownHosts(sources);
+  parsed.matches = (parsed.matches ?? []).filter((m) => m.url && (hosts.size === 0 || hosts.has(host(m.url))));
+  return parsed;
+}
+
+/** Find sources that support the text's claims and format citations. */
+export async function findCitations(
+  apiKey: string | null,
+  text: string,
+  style: "APA" | "MLA" | "Chicago",
+  settings: Settings,
+  signal?: AbortSignal,
+) {
+  const { text: answer, sources } = await runSearch(apiKey, settings, {
+    system: `You are Matra's citation finder. Identify the main factual claims in the text, search the web for credible sources (official bodies, journals, reputable news, reference works) that support each, and format citations in ${style} style using the real page details. Never invent a source. ${LANG}`,
+    user: `Answer with only a JSON object, no other text:\n{"claims": [{"claim": "<short claim from the text>", "sources": [{"title": "<page title>", "url": "<page url>", "citation": "<full ${style} citation>"}]}]}\nUp to 4 claims, up to 2 sources each. Skip claims that need no citation.\n\n<text>\n${text}\n</text>`,
+    signal,
+  });
+  const parsed = extractJson<CitationResult>(answer) ?? { claims: [] };
+  const hosts = knownHosts(sources);
+  for (const c of parsed.claims ?? []) {
+    c.sources = (c.sources ?? []).filter((s) => s.url && (hosts.size === 0 || hosts.has(host(s.url))));
+  }
+  parsed.claims = (parsed.claims ?? []).filter((c) => c.sources.length > 0);
+  return parsed;
+}
+
+function host(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "").toLowerCase();
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * Sites the search really visited. Claude returns page URLs; Gemini returns redirect
+ * links whose title is the site's domain, so both are used.
+ */
+export function knownHosts(sources: { title: string; url: string }[]): Set<string> {
+  const out = new Set<string>();
+  for (const s of sources) {
+    const h = host(s.url);
+    if (h && !h.endsWith("vertexaisearch.cloud.google.com")) out.add(h);
+    const t = s.title.trim().toLowerCase().replace(/^www\./, "");
+    if (/^[a-z0-9.-]+\.[a-z]{2,}$/.test(t)) out.add(t);
+  }
+  return out;
 }

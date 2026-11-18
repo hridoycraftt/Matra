@@ -1173,3 +1173,9 @@ html.ul-patterns .overlay-delivery { border-bottom: 3px double var(--c-delivery)
 .onboard-head h2 { margin: 0; font-size: 17px; }
 .onboard-head p { margin: 3px 0 0; font-size: 13px; color: var(--ink-3); }
 .onboard-foot { display: flex; justify-content: space-between; align-items: center; padding-top: 12px; border-top: 1px solid var(--line); }
+.meter-ok { background: var(--c-engagement); }
+.agent-result a { color: var(--brand); text-underline-offset: 2px; }
+.claim { display: flex; flex-direction: column; gap: 6px; }
+.citation { padding: 9px 10px; border-radius: var(--radius-sm); background: var(--hover); }
+.citation p { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--ink); }
+.citation-actions { display: flex; align-items: center; justify-content: space-between; margin-top: 6px; font-size: 12px; }

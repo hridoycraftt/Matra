@@ -1,6 +1,6 @@
 [package]
 name = "matra"
-version = "0.4.1"
+version = "0.4.2"
 description = "Matra — AI writing partner for English and Bangla"
 edition = "2021"
 publish = false
@@ -18,6 +18,7 @@ tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
 tauri-plugin-global-shortcut = "2"
 tauri-plugin-autostart = "2"
+tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 

@@ -1,8 +1,20 @@
 import { useRef, useState } from "react";
-import { estimateAI, gradeText, readerReactions, type AIEstimate, type GradeResult, type ReaderReaction } from "../lib/agents";
+import {
+  checkPlagiarism,
+  estimateAI,
+  findCitations,
+  gradeText,
+  readerReactions,
+  type AIEstimate,
+  type CitationResult,
+  type GradeResult,
+  type PlagiarismResult,
+  type ReaderReaction,
+} from "../lib/agents";
 import { friendlyError } from "../lib/ai";
 import type { Goals, Settings } from "../lib/types";
-import { IconDetector, IconGrader, IconReaders } from "./Icons";
+import { ExternalLink } from "./ExternalLink";
+import { IconCitation, IconCopy, IconDetector, IconGrader, IconPlagiarism, IconReaders } from "./Icons";
 
 export interface AgentsContext {
   text: string;
@@ -13,7 +25,7 @@ export interface AgentsContext {
 
 const READERS = ["My manager", "A customer", "A hiring manager", "My teacher", "A friend"];
 
-type Tool = "readers" | "grader" | "detector";
+type Tool = "readers" | "grader" | "detector" | "plagiarism" | "citations";
 
 /** Matra's agents: deeper checks you run on purpose, not on every pause. */
 export function AgentsPanel({ ctx }: { ctx: AgentsContext }) {
@@ -46,6 +58,28 @@ export function AgentsPanel({ ctx }: { ctx: AgentsContext }) {
         sub="Which parts read as AI-written"
       >
         <Detector ctx={ctx} disabled={empty} />
+      </Agent>
+      <Agent
+        id="plagiarism"
+        open={open}
+        onOpen={setOpen}
+        Icon={IconPlagiarism}
+        tint="pink"
+        title="Plagiarism check"
+        sub="Searches the web for matching passages"
+      >
+        <Plagiarism ctx={ctx} disabled={empty} />
+      </Agent>
+      <Agent
+        id="citations"
+        open={open}
+        onOpen={setOpen}
+        Icon={IconCitation}
+        tint="blue"
+        title="Citation finder"
+        sub="Sources for your claims, APA · MLA · Chicago"
+      >
+        <Citations ctx={ctx} disabled={empty} />
       </Agent>
     </div>
   );
@@ -236,6 +270,83 @@ function Detector({ ctx, disabled }: { ctx: AgentsContext; disabled: boolean }) 
               ))}
             </ul>
           )}
+        </div>
+      )}
+    </>
+  );
+}
+
+function Plagiarism({ ctx, disabled }: { ctx: AgentsContext; disabled: boolean }) {
+  const { result, busy, error, run } = useRun<PlagiarismResult>();
+  const pct = result ? Math.max(0, Math.min(100, Math.round(result.originalPercent))) : 0;
+  return (
+    <>
+      <p className="muted small">Matra searches the web for your most distinctive sentences. It can take up to a minute.</p>
+      <button className="btn btn-primary btn-block" disabled={disabled || busy} onClick={() => run((s) => checkPlagiarism(ctx.apiKey, ctx.text, ctx.settings, s))}>
+        {busy ? "Searching the web…" : "Check for plagiarism"}
+      </button>
+      {error && <div className="notice notice-error" role="alert">{error}</div>}
+      {result && (
+        <div className="agent-result" aria-live="polite">
+          <div className="meter" role="img" aria-label={`About ${pct}% looks original`}>
+            <div className="meter-fill meter-ok" style={{ width: `${pct}%` }} />
+          </div>
+          <p className="agent-lead">
+            <strong>About {pct}% looks original.</strong> {result.summary}
+          </p>
+          {result.matches.length > 0 ? (
+            <ul>
+              {result.matches.map((m) => (
+                <li key={m.quote + m.url}>
+                  <q>{m.quote}</q> — {m.similarity} match on{" "}
+                  <ExternalLink href={m.url}>{m.source || new URL(m.url).hostname}</ExternalLink>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="muted small">No matching pages were found.</p>
+          )}
+        </div>
+      )}
+    </>
+  );
+}
+
+function Citations({ ctx, disabled }: { ctx: AgentsContext; disabled: boolean }) {
+  const [style, setStyle] = useState<"APA" | "MLA" | "Chicago">("APA");
+  const { result, busy, error, run } = useRun<CitationResult>();
+  return (
+    <>
+      <div className="pills" role="group" aria-label="Citation style">
+        {(["APA", "MLA", "Chicago"] as const).map((s) => (
+          <button key={s} className={`pill${style === s ? " is-on" : ""}`} aria-pressed={style === s} onClick={() => setStyle(s)}>
+            {s}
+          </button>
+        ))}
+      </div>
+      <button className="btn btn-primary btn-block" disabled={disabled || busy} onClick={() => run((sig) => findCitations(ctx.apiKey, ctx.text, style, ctx.settings, sig))}>
+        {busy ? "Finding sources…" : "Find sources"}
+      </button>
+      {error && <div className="notice notice-error" role="alert">{error}</div>}
+      {result && (
+        <div className="agent-result" aria-live="polite">
+          {result.claims.length === 0 && <p className="muted small">No claims that need a citation, or no reliable sources found.</p>}
+          {result.claims.map((c) => (
+            <div key={c.claim} className="claim">
+              <h4>{c.claim}</h4>
+              {c.sources.map((s) => (
+                <div key={s.url} className="citation">
+                  <p>{s.citation}</p>
+                  <div className="citation-actions">
+                    <ExternalLink href={s.url}>Open source</ExternalLink>
+                    <button className="btn btn-quiet btn-sm" onClick={() => navigator.clipboard?.writeText(s.citation).catch(() => undefined)}>
+                      <IconCopy size={14} /> Copy
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ))}
         </div>
       )}
     </>

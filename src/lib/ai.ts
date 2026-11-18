@@ -31,6 +31,11 @@ export async function runJson<T>(
   }
 }
 
+/** A request that may search the web first (plagiarism, citations). */
+export function runSearch(apiKey: string | null, settings: Settings, req: { system: string; user: string; signal?: AbortSignal }) {
+  return backend(apiKey, settings).search(req);
+}
+
 export function friendlyError(err: unknown): MatraAIError {
   if (err instanceof MatraAIError) return err;
   return new MatraAIError(err instanceof Error ? err.message : "Something went wrong.", "other");

@@ -16,6 +16,7 @@
     "core:window:allow-set-size",
     "updater:default",
     "process:allow-restart",
-    "autostart:default"
+    "autostart:default",
+    "opener:default"
   ]
 }
