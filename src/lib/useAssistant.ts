@@ -3,7 +3,7 @@ import type { EditorHandle } from "../components/Editor";
 import type { CheckView, WriterView } from "../components/SidePanel";
 import { checkText, friendlyError, MAX_CHECK_CHARS, streamCompose, streamRewrite } from "./ai";
 import { applyIssue, locateIssues, remapIssues } from "./locate";
-import type { Category, Goals, Issue, RewriteMode, Settings } from "./types";
+import { rejectKey, type Category, type Goals, type Issue, type RewriteMode, type Settings } from "./types";
 
 const AUTO_CHECK_DELAY = 1600;
 
@@ -16,13 +16,17 @@ interface Options {
   editor: RefObject<EditorHandle | null>;
   /** Save a word to the personal dictionary. */
   onAddWord?(word: string): void;
+  /** "Turn off suggestions like this": never show this kind of suggestion again. */
+  onMute?(kind: string): void;
+  /** "Incorrect suggestion": never suggest this exact change again. */
+  onReject?(key: string): void;
 }
 
 /**
  * Everything Matra does to one piece of text: checking, suggestions, rewrite and compose.
  * Used by the main window and by the floating assistant that works in other apps.
  */
-export function useAssistant({ text, setText, goals, settings, apiKey, editor, onAddWord }: Options) {
+export function useAssistant({ text, setText, goals, settings, apiKey, editor, onAddWord, onMute, onReject }: Options) {
   const [issues, setIssues] = useState<Issue[]>([]);
   const [activeIssue, setActiveIssue] = useState<string | null>(null);
   const [check, setCheck] = useState<CheckView>({ status: "idle" });
@@ -121,6 +125,18 @@ export function useAssistant({ text, setText, goals, settings, apiKey, editor, o
     setActiveIssue(null);
   };
   const dismiss = (id: string) => setIssues((all) => all.filter((i) => i.id !== id));
+  const mute = (id: string) => {
+    const kind = issues.find((i) => i.id === id)?.title.trim();
+    if (!kind) return;
+    onMute?.(kind);
+    setIssues((all) => all.filter((i) => i.title.trim().toLowerCase() !== kind.toLowerCase()));
+  };
+  const report = (id: string) => {
+    const i = issues.find((x) => x.id === id);
+    if (!i) return;
+    onReject?.(rejectKey(i.original, i.replacement));
+    dismiss(id);
+  };
   /** "Add to dictionary": stop flagging this word, here and in every later check. */
   const addWord = (id: string) => {
     const word = issues.find((i) => i.id === id)?.original.trim();
@@ -230,6 +246,8 @@ export function useAssistant({ text, setText, goals, settings, apiKey, editor, o
     accept,
     dismiss,
     addWord,
+    mute,
+    report,
     acceptAll,
     activate,
     onCaret,

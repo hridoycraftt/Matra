@@ -328,6 +328,25 @@ function DictionaryAndStyle({ settings, onSettings }: { settings: Settings; onSe
           ))}
         </ul>
       )}
+      {settings.mutedKinds.length > 0 && (
+        <>
+          <h3>Turned-off suggestions</h3>
+          <ul className="word-list" aria-label="Turned-off suggestion kinds">
+            {settings.mutedKinds.map((k) => (
+              <li key={k}>
+                {k}
+                <button
+                  className="icon-btn"
+                  aria-label={`Turn ${k} suggestions back on`}
+                  onClick={() => onSettings({ ...settings, mutedKinds: settings.mutedKinds.filter((x) => x !== k) })}
+                >
+                  <IconX size={12} />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
       <h3>Style guide</h3>
       <p className="muted small">Your own rules, one per line. Matra flags text that breaks them.</p>
       <textarea

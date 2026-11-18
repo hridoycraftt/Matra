@@ -54,6 +54,8 @@ export default function App() {
     apiKey,
     editor,
     onAddWord: (w) => setSettings({ ...settings, dictionary: [...new Set([...settings.dictionary, w])] }),
+    onMute: (k) => setSettings({ ...settings, mutedKinds: [...new Set([...settings.mutedKinds, k])] }),
+    onReject: (r) => setSettings({ ...settings, rejected: [...new Set([...settings.rejected, r])].slice(-300) }),
   });
   const selectionWords = useSelectionWords();
 
@@ -201,6 +203,8 @@ export default function App() {
         onAccept={a.accept}
         onDismiss={a.dismiss}
         onAddWord={a.addWord}
+        onMute={a.mute}
+        onReport={a.report}
         onAcceptAll={a.acceptAll}
         hasKey={!!apiKey}
         providerLabel={PROVIDERS.find((x) => x.id === settings.provider)!.label}

@@ -824,3 +824,31 @@ html.in-app.is-card .sugg { width: auto; }
 .sugg-hero { display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; padding: 18px 16px 20px; }
 .sugg-hero strong { margin-top: 8px; font-size: 14px; }
 .sugg-ok { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: color-mix(in srgb, var(--c-engagement) 14%, transparent); color: var(--c-engagement); }
+
+/* ⋯ menu on suggestions */
+.issue-menu { position: relative; margin-left: auto; }
+.menu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 4px);
+  z-index: 30;
+  min-width: 230px;
+  padding: 4px;
+  border-radius: 10px;
+  background: var(--page);
+  box-shadow: var(--shadow-pop);
+  animation: pop-in 140ms var(--ease) both;
+  transform-origin: bottom right;
+}
+.menu button {
+  display: block;
+  width: 100%;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  text-align: left;
+  font-size: 12.5px;
+}
+.menu button:hover, .menu button:focus-visible { background: var(--hover); outline: none; }
+.card-actions, .sugg-actions { align-items: center; }

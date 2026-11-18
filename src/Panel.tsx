@@ -2,7 +2,8 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Editor, type EditorHandle } from "./components/Editor";
 import { GoalsMenu } from "./components/GoalsMenu";
 import { IconCheck, IconGear, IconX, LogoMark } from "./components/Icons";
-import { canAddWord, SidePanel } from "./components/SidePanel";
+import { IssueMenu } from "./components/IssueMenu";
+import { SidePanel } from "./components/SidePanel";
 import {
   configureEverywhere,
   currentField,
@@ -86,6 +87,8 @@ export default function Panel() {
     apiKey,
     editor,
     onAddWord: (w) => setSettings({ ...settings, dictionary: [...new Set([...settings.dictionary, w])] }),
+    onMute: (k) => setSettings({ ...settings, mutedKinds: [...new Set([...settings.mutedKinds, k])] }),
+    onReject: (r) => setSettings({ ...settings, rejected: [...new Set([...settings.rejected, r])].slice(-300) }),
   });
   const selectionWords = useSelectionWords();
 
@@ -221,6 +224,8 @@ export default function Panel() {
         }}
         onDismiss={a.dismiss}
         onAddWord={a.addWord}
+        onMute={a.mute}
+        onReport={a.report}
         onExpand={() => {
           if (!a.issues.length) a.setTab("write");
           open("full", true);
@@ -281,6 +286,8 @@ export default function Panel() {
         onAccept={a.accept}
         onDismiss={a.dismiss}
         onAddWord={a.addWord}
+        onMute={a.mute}
+        onReport={a.report}
         onAcceptAll={a.acceptAll}
         hasKey={!!apiKey}
         providerLabel={providerLabel}
@@ -314,6 +321,8 @@ function SuggestionCard(p: {
   onAccept(id: string): void;
   onDismiss(id: string): void;
   onAddWord(id: string): void;
+  onMute(id: string): void;
+  onReport(id: string): void;
   onExpand(): void;
   onClose(): void;
   onResize(height: number): void;
@@ -382,9 +391,7 @@ function SuggestionCard(p: {
           <div className="sugg-actions">
             <button className="btn btn-primary btn-sm" onClick={() => p.onAccept(issue.id)}>Accept</button>
             <button className="btn btn-quiet btn-sm" onClick={() => p.onDismiss(issue.id)}>Dismiss</button>
-            {canAddWord(issue) && (
-              <button className="btn btn-quiet btn-sm" onClick={() => p.onAddWord(issue.id)}>Add to dictionary</button>
-            )}
+            <IssueMenu issue={issue} onAddWord={p.onAddWord} onMute={p.onMute} onReport={p.onReport} />
           </div>
         </div>
       ) : p.empty ? (

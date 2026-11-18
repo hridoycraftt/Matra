@@ -1,7 +1,7 @@
 import { anthropicBackend } from "./providers/anthropic";
 import { googleBackend } from "./providers/google";
 import { MatraAIError, type Backend } from "./providers/types";
-import { activeModel, PROVIDERS, type CheckResult, type Goals, type RewriteMode, type Settings } from "./types";
+import { activeModel, PROVIDERS, rejectKey, type CheckResult, type Goals, type RewriteMode, type Settings } from "./types";
 
 export { MatraAIError };
 
@@ -109,6 +109,9 @@ export async function checkText(
     settings.dictionary.length
       ? `The writer's personal dictionary — never flag these words or their spelling: ${settings.dictionary.join(", ")}.`
       : "",
+    settings.mutedKinds.length
+      ? `The writer turned off these kinds of suggestions; do not report them: ${settings.mutedKinds.join("; ")}.`
+      : "",
     settings.styleRules.trim()
       ? `The writer's house style rules. Flag text that breaks them (category delivery, title "Style guide") and follow them in replacements:\n${settings.styleRules.trim()}`
       : "",
@@ -128,8 +131,13 @@ export async function checkText(
     throw new MatraAIError("The AI returned an unreadable result. Try again.", "other");
   }
   const known = new Set(settings.dictionary.map((w) => w.toLowerCase()));
+  const muted = new Set(settings.mutedKinds.map((k) => k.toLowerCase()));
+  const rejected = new Set(settings.rejected);
   parsed.issues = (Array.isArray(parsed.issues) ? parsed.issues : []).filter(
-    (i) => !(i.category === "correctness" && known.has(i.original.trim().toLowerCase())),
+    (i) =>
+      !(i.category === "correctness" && known.has(i.original.trim().toLowerCase())) &&
+      !muted.has(i.title.trim().toLowerCase()) &&
+      !rejected.has(rejectKey(i.original, i.replacement)),
   );
   parsed.score = Math.max(0, Math.min(100, Math.round(Number(parsed.score) || 0)));
   parsed.tone_labels = (parsed.tone_labels ?? []).slice(0, 3);

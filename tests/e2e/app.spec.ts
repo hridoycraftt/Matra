@@ -184,7 +184,8 @@ test("add to dictionary stops flagging the word and teaches later checks", async
   await page.goto("/");
   await page.getByRole("button", { name: /^Check/ }).click();
   await expect(page.locator(".card")).toHaveCount(5);
-  await page.locator(".card", { hasText: "Agreement" }).getByRole("button", { name: "Add to dictionary" }).click();
+  await page.locator(".card", { hasText: "Agreement" }).getByRole("button", { name: "More options for this suggestion" }).click();
+  await page.getByRole("menuitem", { name: "Add “work” to dictionary" }).click();
   await expect(page.locator(".card")).toHaveCount(4);
   await page.getByRole("button", { name: /^Check/ }).click();
   await expect.poll(() => log.requests.length).toBe(2);
@@ -193,4 +194,26 @@ test("add to dictionary stops flagging the word and teaches later checks", async
   expect(body).toContain("work");
   // Checks after that drop the word even if the model flags it again.
   await expect(page.locator(".card")).toHaveCount(4);
+});
+
+test("⋯ menu turns off a kind of suggestion and remembers it", async ({ page }) => {
+  await withKey(page);
+  const log = await mockClaude(page);
+  await page.goto("/");
+  await page.getByRole("button", { name: /^Check/ }).click();
+  await expect(page.locator(".card")).toHaveCount(5);
+  const card = page.locator(".card", { hasText: "Agreement" });
+  await card.getByRole("button", { name: "More options for this suggestion" }).click();
+  await page.getByRole("menuitem", { name: "Turn off “Agreement” suggestions" }).click();
+  await expect(page.locator(".card")).toHaveCount(4);
+
+  await page.locator(".card").first().getByRole("button", { name: "More options for this suggestion" }).click();
+  await page.getByRole("menuitem", { name: "Incorrect suggestion" }).click();
+  await expect(page.locator(".card")).toHaveCount(3);
+
+  await page.getByRole("button", { name: /^Check/ }).click();
+  await expect.poll(() => log.requests.length).toBe(2);
+  expect(JSON.stringify(log.requests[1])).toContain("turned off these kinds of suggestions");
+  // The same model answer comes back, but muted and rejected suggestions stay hidden.
+  await expect(page.locator(".card")).toHaveCount(3);
 });

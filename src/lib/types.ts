@@ -100,7 +100,14 @@ export interface Settings {
   styleRules: string;
   /** Where the user dragged the badge, per app name: [dx, dy] from the field's corner. */
   badgeOffsets: Record<string, [number, number]>;
+  /** Kinds of suggestion (by title) the writer turned off. */
+  mutedKinds: string[];
+  /** Exact changes the writer marked as incorrect (see rejectKey). */
+  rejected: string[];
 }
+
+/** Identifies one exact change, for "Incorrect suggestion". */
+export const rejectKey = (original: string, replacement: string) => `${original.trim()}\u2192${replacement.trim()}`.toLowerCase();
 
 export const PROVIDERS: { id: Provider; label: string; keyHint: string; keyUrl: string; placeholder: string }[] = [
   {
@@ -141,6 +148,8 @@ export const DEFAULT_SETTINGS: Settings = {
   dictionary: [],
   styleRules: "",
   badgeOffsets: {},
+  mutedKinds: [],
+  rejected: [],
 };
 
 export function activeModel(s: Settings): string {

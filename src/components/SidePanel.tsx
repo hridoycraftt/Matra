@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { CATEGORIES, REWRITE_MODES, type Category, type Issue, type RewriteMode } from "../lib/types";
+import { IssueMenu } from "./IssueMenu";
 import { IconArrowDown, IconCheck, IconCopy, IconSpark, IconX, LogoMark } from "./Icons";
 
 export type CheckStatus = "idle" | "checking" | "done" | "error";
@@ -32,6 +33,8 @@ interface Props {
   onAccept(id: string): void;
   onDismiss(id: string): void;
   onAddWord(id: string): void;
+  onMute(id: string): void;
+  onReport(id: string): void;
   onAcceptAll(category: Category | "all"): void;
   hasKey: boolean;
   providerLabel: string;
@@ -75,9 +78,6 @@ export function SidePanel(p: Props) {
     </aside>
   );
 }
-
-/** A single misspelled-looking word can be added to the personal dictionary. */
-export const canAddWord = (i: Issue) => i.category === "correctness" && /^[\p{L}\p{M}'’-]+$/u.test(i.original.trim());
 
 function ScoreRing({ score, busy }: { score?: number; busy: boolean }) {
   const r = 26;
@@ -197,17 +197,7 @@ function Review(p: Props) {
               >
                 Dismiss
               </button>
-              {canAddWord(i) && (
-                <button
-                  className="btn btn-quiet btn-sm"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    p.onAddWord(i.id);
-                  }}
-                >
-                  Add to dictionary
-                </button>
-              )}
+              <IssueMenu issue={i} onAddWord={p.onAddWord} onMute={p.onMute} onReport={p.onReport} />
             </div>
           </li>
         ))}
