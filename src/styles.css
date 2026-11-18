@@ -1219,3 +1219,22 @@ html.ul-patterns .overlay-delivery { border-bottom: 3px double var(--c-delivery)
 .sel-pill.is-inline { position: static; box-shadow: none; animation: none; flex-wrap: wrap; }
 .sel-card-pill { padding: 2px; }
 .sel-out { min-height: 40px; max-height: 220px; overflow: auto; font-size: 14px; }
+
+/* ============ responsive refinements (window 900px – 2560px+) ============ */
+@media (max-width: 1080px) {
+  /* The goals button shows only its icon so the document title has room. */
+  .toolbar .popover-root .hide-narrow { display: none; }
+  .toolbar { gap: 8px; padding-left: 16px; padding-right: 16px; }
+}
+@media (max-width: 1100px) and (min-width: 821px) {
+  /* In Settings, the document sidebar steps aside so sections have room. */
+  .app.is-settings { grid-template-columns: minmax(0, 1fr); }
+  .app.is-settings > .sidebar { display: none; }
+  .in-app .app.is-settings .settings-nav, .app.in-app.is-settings .settings-nav { padding-top: 40px; }
+}
+@media (min-width: 1800px) {
+  .app { grid-template-columns: 260px minmax(0, 1fr) 380px; }
+  .app.is-settings { grid-template-columns: 260px minmax(0, 1fr); }
+  .page { max-width: 820px; }
+  .editor-backdrop, .editor-input { font-size: 18px; }
+}

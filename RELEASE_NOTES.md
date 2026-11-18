@@ -1,4 +1,4 @@
-Matra 0.4.5 — rewrite and snippets in every app.
-• Select some text in any app (Mail, Slack, Chrome…) and a small Matra pill appears above it: Improve, Shorten, Formal, Friendly or "Tell Matra to…". Check the result, then Replace puts it right back into the app. Turn this off in Settings → Other apps.
-• Snippets now work in other apps too: type a trigger like ";sig" and a space, and Matra puts your saved text in place.
-• Includes 0.4.4: "Fix all in sentence" and "Your voice".
+Matra 0.4.6 — fits every window size.
+• At the smallest window size the document title is no longer cut off (the goals button becomes an icon), and Settings gets the whole window so every section reads comfortably.
+• On large displays the writing page and suggestion panel are a little wider, with a slightly larger text size.
+• Includes 0.4.5: rewrite selected text and snippets in every app; 0.4.4: Fix all in sentence and Your voice.
