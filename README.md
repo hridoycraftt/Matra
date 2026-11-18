@@ -57,14 +57,15 @@ One-time setup, so that updates can be signed and verified: in GitHub, go to **S
 
 The matching public key is already in `src-tauri/tauri.conf.json`. Keep the private key safe. If you lose it, installed copies of Matra can no longer verify updates, and you would have to reinstall them by hand.
 
-Then, for every release:
+Then, for every release, bump the version and push to `main`:
 
 ```bash
-npm version patch          # or minor / major: bumps package.json and creates the tag
-git push --follow-tags
+npm version patch --no-git-tag-version   # or minor / major
+git commit -am "Release v$(node -p "require('./package.json').version")"
+git push
 ```
 
-The **Release** workflow builds a universal `.dmg` and publishes it to GitHub Releases along with `latest.json`. Copies of Matra that are already installed then see the new version under **Settings → Check for updates**.
+When `package.json` changes on `main` and no release exists yet for that version, the **Release** workflow builds a universal `.dmg`, creates the tag `v<version>`, and publishes the release along with `latest.json`. Copies of Matra that are already installed then see the new version under **Settings → Check for updates**. You can also start the workflow by hand from the Actions tab.
 
 ## How the pieces fit
 
