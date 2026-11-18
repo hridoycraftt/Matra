@@ -17,6 +17,20 @@ function backend(apiKey: string | null, settings: Settings): Backend {
   return settings.provider === "google" ? googleBackend(apiKey, model) : anthropicBackend(apiKey, model);
 }
 
+/** One structured (JSON) request to the chosen provider, for Matra's agents. */
+export async function runJson<T>(
+  apiKey: string | null,
+  settings: Settings,
+  req: { system: string; user: string; schema: object; signal?: AbortSignal },
+): Promise<T> {
+  const raw = await backend(apiKey, settings).json(req);
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    throw new MatraAIError("The AI returned an unreadable result. Try again.", "other");
+  }
+}
+
 export function friendlyError(err: unknown): MatraAIError {
   if (err instanceof MatraAIError) return err;
   return new MatraAIError(err instanceof Error ? err.message : "Something went wrong.", "other");

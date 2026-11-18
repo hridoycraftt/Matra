@@ -30,7 +30,7 @@ export function useAssistant({ text, setText, goals, settings, apiKey, editor, o
   const [issues, setIssues] = useState<Issue[]>([]);
   const [activeIssue, setActiveIssue] = useState<string | null>(null);
   const [check, setCheck] = useState<CheckView>({ status: "idle" });
-  const [tab, setTab] = useState<"review" | "write">("review");
+  const [tab, setTab] = useState<"review" | "write" | "agents">("review");
   const [writer, setWriter] = useState<WriterView | null>(null);
 
   const textRef = useRef(text);

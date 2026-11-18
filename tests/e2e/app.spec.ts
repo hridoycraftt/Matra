@@ -49,7 +49,7 @@ test("rewrites a selection with streaming output and replaces it", async ({ page
     el.focus();
     el.setSelectionRange(start, el.value.length);
   });
-  await page.getByRole("tab", { name: "Write with AI" }).click();
+  await page.getByRole("tab", { name: "Write", exact: true }).click();
   await page.getByRole("button", { name: "Banglish → Bangla" }).click();
   await expect(page.locator(".writer-output")).toHaveText("আমি কাল তোমাকে ফোন দেব।");
   await page.getByRole("button", { name: "Replace" }).click();
@@ -62,7 +62,7 @@ test("composes new text from a prompt and inserts it", async ({ page }) => {
   await mockClaude(page, { written: "Dear Sir, I would like to request leave." });
   await page.goto("/");
   await page.getByRole("button", { name: /New document/ }).click();
-  await page.getByRole("tab", { name: "Write with AI" }).click();
+  await page.getByRole("tab", { name: "Write", exact: true }).click();
   await page.getByLabel("What should Matra write?").fill("leave email to my boss");
   await page.getByRole("button", { name: "Write it" }).click();
   await page.getByRole("button", { name: "Insert" }).click();
@@ -118,7 +118,7 @@ test("works with a free Google Gemini key", async ({ page }) => {
     el.focus();
     el.setSelectionRange(el.value.indexOf("ami kal"), el.value.length);
   });
-  await page.getByRole("tab", { name: "Write with AI" }).click();
+  await page.getByRole("tab", { name: "Write", exact: true }).click();
   await page.getByRole("button", { name: "Banglish → Bangla" }).click();
   await expect(page.locator(".writer-output")).toHaveText("আমি কাল তোমাকে ফোন দেব।");
 });
@@ -263,4 +263,23 @@ test("selecting text shows a pill that rewrites the selection", async ({ page })
   await pill.getByRole("button", { name: "Improve" }).click();
   await expect(page.locator(".writer-output")).toHaveText("Matra fixes your writing as you type.");
   await expect(page.getByRole("button", { name: "Regenerate" })).toBeVisible();
+});
+
+test("Agents tab: reader reactions for a chosen reader", async ({ page }) => {
+  await withKey(page);
+  const log = await mockClaude(page, {
+    check: {
+      overall: "Your manager will appreciate the clear request but want a date.",
+      feels: ["reassured", "curious"],
+      questions: ["When will you be back?"],
+      improvements: [{ quote: "Their are a few mistakes", suggestion: "Say what you need up front." }],
+    },
+  });
+  await page.goto("/");
+  await page.getByRole("tab", { name: "Agents" }).click();
+  await page.getByRole("button", { name: "My manager" }).click();
+  await page.getByRole("button", { name: "Run" }).click();
+  await expect(page.getByText("Your manager will appreciate")).toBeVisible();
+  await expect(page.getByText("When will you be back?")).toBeVisible();
+  expect(JSON.stringify(log.requests[0])).toContain("Reader: My manager");
 });

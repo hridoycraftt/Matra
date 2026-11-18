@@ -301,6 +301,7 @@ export default function Panel() {
         onWriterDiscard={a.discardWriter}
         onWriterStop={a.stopWriter}
         onRegenerate={a.regenerate}
+        agents={{ text, goals, settings, apiKey }}
         compact
       />
 

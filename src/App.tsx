@@ -262,6 +262,7 @@ export default function App() {
         onWriterDiscard={a.discardWriter}
         onWriterStop={a.stopWriter}
         onRegenerate={a.regenerate}
+        agents={{ text: doc.text, goals: doc.goals, settings, apiKey }}
       />
       </>
       )}

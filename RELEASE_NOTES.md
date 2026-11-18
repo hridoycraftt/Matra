@@ -1,5 +1,6 @@
-Matra 0.3.6 — a cleaner look, and permission that sticks.
-• Matra is now signed with its own certificate. Allow Accessibility once more after this update; later updates keep it.
-• New icons across the whole app (Hugeicons), and colored section icons in Settings, like macOS System Settings.
-• Each Settings section has a short description, and the document list shows icons.
-• Before your first check, the Review panel explains what to do instead of showing empty counters.
+Matra 0.3.7 — Agents.
+• New "Agents" tab next to Review and Write:
+  – Reader reactions: pick a reader (your manager, a customer, a teacher… or type one) and see how they'll take your text, what they'll ask, and what to change.
+  – AI grader: paste a rubric or brief and get a grade, strengths and what to improve.
+  – AI-writing estimate: which passages read as AI-written (an estimate from style, not proof).
+• Includes 0.3.6: new icons, Settings section icons, and Matra's own signing certificate (allow Accessibility once more after updating).

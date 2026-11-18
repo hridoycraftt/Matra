@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { CATEGORIES, REWRITE_MODES, type Category, type Issue, type RewriteMode } from "../lib/types";
+import { AgentsPanel, type AgentsContext } from "./AgentsPanel";
 import { IssueMenu } from "./IssueMenu";
 import { IconArrowDown, IconArrowRight, IconCheck, IconCopy, IconSpark, IconX, LogoMark } from "./Icons";
 
@@ -24,8 +25,9 @@ export interface WriterView {
 }
 
 interface Props {
-  tab: "review" | "write";
-  onTab(t: "review" | "write"): void;
+  tab: "review" | "write" | "agents";
+  onTab(t: "review" | "write" | "agents"): void;
+  agents?: AgentsContext;
   check: CheckView;
   issues: Issue[];
   activeId: string | null;
@@ -59,8 +61,13 @@ export function SidePanel(p: Props) {
           {p.issues.length > 0 && <span className="count">{p.issues.length}</span>}
         </button>
         <button role="tab" aria-selected={p.tab === "write"} onClick={() => p.onTab("write")}>
-          Write with AI
+          Write
         </button>
+        {p.agents && (
+          <button role="tab" aria-selected={p.tab === "agents"} onClick={() => p.onTab("agents")}>
+            Agents
+          </button>
+        )}
       </div>
       {!p.hasKey ? (
         <div className="empty">
@@ -73,6 +80,8 @@ export function SidePanel(p: Props) {
         </div>
       ) : p.tab === "review" ? (
         <Review {...p} />
+      ) : p.tab === "agents" && p.agents ? (
+        <AgentsPanel ctx={p.agents} />
       ) : (
         <Write {...p} />
       )}

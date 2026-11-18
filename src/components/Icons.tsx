@@ -25,6 +25,9 @@ import {
   DashboardSquare01Icon,
   Download04Icon,
   Edit02Icon,
+  UserGroupIcon,
+  Mortarboard01Icon,
+  AiSearchIcon,
 } from "@hugeicons/core-free-icons";
 
 type P = { size?: number };
@@ -59,6 +62,11 @@ export const IconStyle = make(PaintBrush01Icon);
 export const IconUpdates = make(Download04Icon);
 export const IconKey = make(Key01Icon);
 export const IconActivity = make(Activity01Icon);
+
+// Agents
+export const IconReaders = make(UserGroupIcon);
+export const IconGrader = make(Mortarboard01Icon);
+export const IconDetector = make(AiSearchIcon);
 
 export const IconChevron = ({ size = 16, dir = "down" }: P & { dir?: "down" | "left" | "right" | "up" }) => (
   <span className="icon-rot" style={{ transform: `rotate(${{ down: 0, left: 90, up: 180, right: -90 }[dir]}deg)` }}>
