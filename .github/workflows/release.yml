@@ -96,6 +96,10 @@ jobs:
             security find-identity -v -p codesigning || true
             echo "::warning::Signing certificate not usable; this build uses an ad-hoc signature."
           fi
+      # Spotlight indexing can hold the temporary disk image open, which makes the
+      # .dmg step fail with "hdiutil: couldn't eject … Resource busy".
+      - name: Keep Spotlight off the build disk images
+        run: sudo mdutil -a -i off || true
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -109,6 +113,7 @@ jobs:
           releaseDraft: false
           prerelease: false
           includeUpdaterJson: true
+          retryAttempts: 2
           args: --target universal-apple-darwin
 
   release-fallback:
@@ -169,6 +174,10 @@ jobs:
             security find-identity -v -p codesigning || true
             echo "::warning::Signing certificate not usable; this build uses an ad-hoc signature."
           fi
+      # Spotlight indexing can hold the temporary disk image open, which makes the
+      # .dmg step fail with "hdiutil: couldn't eject … Resource busy".
+      - name: Keep Spotlight off the build disk images
+        run: sudo mdutil -a -i off || true
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -182,4 +191,5 @@ jobs:
           releaseDraft: false
           prerelease: false
           includeUpdaterJson: true
+          retryAttempts: 2
           args: --target universal-apple-darwin
