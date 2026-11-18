@@ -3,6 +3,7 @@ import type { EditorHandle } from "../components/Editor";
 import type { CheckView, WriterView } from "../components/SidePanel";
 import { checkText, friendlyError, MAX_CHECK_CHARS, streamCompose, streamRewrite } from "./ai";
 import { applyIssue, locateIssues, remapIssues } from "./locate";
+import { checkPunctuation } from "./punctuation";
 import { rejectKey, type Category, type Goals, type Issue, type RewriteMode, type Settings } from "./types";
 
 const AUTO_CHECK_DELAY = 1600;
@@ -80,7 +81,8 @@ export function useAssistant({ text, setText, goals, settings, apiKey, editor, o
     try {
       const result = await checkText(apiKey, current, goals, settings, ctrl.signal);
       if (ctrl.signal.aborted) return;
-      const located = locateIssues(current, result.issues);
+      // Matra's own punctuation checks first: they are exact, so they win any overlap.
+      const located = locateIssues(current, [...checkPunctuation(current), ...result.issues]);
       // The user may have kept typing while we waited.
       setIssues(remapIssues(current, textRef.current, located));
       setCheck({
@@ -92,6 +94,8 @@ export function useAssistant({ text, setText, goals, settings, apiKey, editor, o
       });
     } catch (err) {
       if (ctrl.signal.aborted) return;
+      // Even without the AI, the built-in punctuation checks still help.
+      setIssues(remapIssues(current, textRef.current, locateIssues(current, checkPunctuation(current))));
       setCheck((c) => ({ ...c, status: "error", error: friendlyError(err).message }));
     }
   }, [apiKey, goals, settings]);

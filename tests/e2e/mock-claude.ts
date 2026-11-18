@@ -125,7 +125,7 @@ export async function mockGemini(page: Page, opts: { check?: object; written?: s
       return route.fulfill({
         status: 200,
         headers: { ...cors, "content-type": "application/json" },
-        body: JSON.stringify({ models: [{ name: "models/gemini-test-flash", displayName: "Gemini Test Flash", supportedActions: ["generateContent"] }] }),
+        body: JSON.stringify({ models: [{ name: "models/gemini-test-flash", displayName: "Gemini Test Flash", supportedGenerationMethods: ["generateContent"] }] }),
       });
     }
     return route.fulfill({

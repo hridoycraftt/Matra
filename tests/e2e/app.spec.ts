@@ -16,8 +16,8 @@ test("checks English and Bangla, underlines issues, and applies a fix", async ({
   await page.goto("/");
 
   await page.getByRole("button", { name: /^Check/ }).click();
-  await expect(page.locator(".card")).toHaveCount(5);
-  await expect(page.locator("mark.hl")).toHaveCount(5);
+  await expect(page.locator(".card")).toHaveCount(6);
+  await expect(page.locator("mark.hl")).toHaveCount(6);
   await expect(page.locator(".ring-label")).toHaveText("72");
   await expect(page.locator(".tone").first()).toHaveText("friendly");
 
@@ -30,10 +30,11 @@ test("checks English and Bangla, underlines issues, and applies a fix", async ({
   const bangla = page.locator(".card", { hasText: "সাধু-চলিত" });
   await bangla.getByRole("button", { name: "Accept" }).click();
   await expect(page.getByLabel("Document text")).toHaveValue(/অংশগ্রহন করব।/);
-  await expect(page.locator(".card")).toHaveCount(4);
+  await expect(page.locator(".card")).toHaveCount(5);
 
   await page.getByRole("button", { name: /Accept all/ }).click();
   await expect(page.locator(".card")).toHaveCount(0);
+  await expect(page.getByLabel("Document text")).toHaveValue(/Ami kal tomake/);
   await expect(page.getByLabel("Document text")).toHaveValue(/checks your writing/);
   await expect(page.getByLabel("Document text")).toHaveValue(/There are a few/);
   await expect(page.getByLabel("Document text")).toHaveValue(/অংশগ্রহণ করব।/);
@@ -110,7 +111,7 @@ test("works with a free Google Gemini key", async ({ page }) => {
   const urls = await mockGemini(page, { written: "আমি কাল তোমাকে ফোন দেব।" });
   await page.goto("/");
   await page.getByRole("button", { name: /^Check/ }).click();
-  await expect(page.locator(".card")).toHaveCount(5);
+  await expect(page.locator(".card")).toHaveCount(6);
   expect(urls[0]).toContain("gemini-flash-latest:generateContent");
 
   const editor = page.getByLabel("Document text");
@@ -185,17 +186,17 @@ test("add to dictionary stops flagging the word and teaches later checks", async
   const log = await mockClaude(page);
   await page.goto("/");
   await page.getByRole("button", { name: /^Check/ }).click();
-  await expect(page.locator(".card")).toHaveCount(5);
+  await expect(page.locator(".card")).toHaveCount(6);
   await page.locator(".card", { hasText: "Agreement" }).getByRole("button", { name: "More options for this suggestion" }).click();
   await page.getByRole("menuitem", { name: "Add “work” to dictionary" }).click();
-  await expect(page.locator(".card")).toHaveCount(4);
+  await expect(page.locator(".card")).toHaveCount(5);
   await page.getByRole("button", { name: /^Check/ }).click();
   await expect.poll(() => log.requests.length).toBe(2);
   const body = JSON.stringify(log.requests[1]);
   expect(body).toContain("personal dictionary");
   expect(body).toContain("work");
   // Checks after that drop the word even if the model flags it again.
-  await expect(page.locator(".card")).toHaveCount(4);
+  await expect(page.locator(".card")).toHaveCount(5);
 });
 
 test("⋯ menu turns off a kind of suggestion and remembers it", async ({ page }) => {
@@ -203,21 +204,21 @@ test("⋯ menu turns off a kind of suggestion and remembers it", async ({ page }
   const log = await mockClaude(page);
   await page.goto("/");
   await page.getByRole("button", { name: /^Check/ }).click();
-  await expect(page.locator(".card")).toHaveCount(5);
+  await expect(page.locator(".card")).toHaveCount(6);
   const card = page.locator(".card", { hasText: "Agreement" });
   await card.getByRole("button", { name: "More options for this suggestion" }).click();
   await page.getByRole("menuitem", { name: "Turn off “Agreement” suggestions" }).click();
-  await expect(page.locator(".card")).toHaveCount(4);
+  await expect(page.locator(".card")).toHaveCount(5);
 
   await page.locator(".card").first().getByRole("button", { name: "More options for this suggestion" }).click();
   await page.getByRole("menuitem", { name: "Incorrect suggestion" }).click();
-  await expect(page.locator(".card")).toHaveCount(3);
+  await expect(page.locator(".card")).toHaveCount(4);
 
   await page.getByRole("button", { name: /^Check/ }).click();
   await expect.poll(() => log.requests.length).toBe(2);
   expect(JSON.stringify(log.requests[1])).toContain("turned off these kinds of suggestions");
   // The same model answer comes back, but muted and rejected suggestions stay hidden.
-  await expect(page.locator(".card")).toHaveCount(3);
+  await expect(page.locator(".card")).toHaveCount(4);
 });
 
 test("alternative fixes appear as chips and apply on click", async ({ page }) => {
@@ -304,4 +305,46 @@ test("underline patterns can be switched on for color-blind users", async ({ pag
   await page.getByRole("button", { name: "Settings", exact: true }).click();
   await page.getByRole("combobox").filter({ hasText: "Color only" }).selectOption("patterns");
   await expect(page.locator("html")).toHaveClass(/ul-patterns/);
+});
+
+test("Gemini: if the chosen model is missing for the key, Matra switches to one that works", async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem("matra.devApiKey.google", "AIza-test");
+    localStorage.setItem("matra.settings.v1", JSON.stringify({ provider: "google", onboarded: true }));
+  });
+  const used: string[] = [];
+  await page.route("https://generativelanguage.googleapis.com/**", async (route) => {
+    const req = route.request();
+    const cors = { "access-control-allow-origin": "*", "access-control-allow-headers": "*" };
+    if (req.method() === "OPTIONS") return route.fulfill({ status: 204, headers: cors });
+    const url = req.url();
+    if (url.includes("/models?") || /\/models$/.test(url.split("?")[0])) {
+      return route.fulfill({
+        status: 200,
+        headers: { ...cors, "content-type": "application/json" },
+        body: JSON.stringify({ models: [{ name: "models/gemini-3.5-flash", supportedGenerationMethods: ["generateContent"] }] }),
+      });
+    }
+    used.push(url);
+    if (url.includes("gemini-flash-latest")) {
+      return route.fulfill({
+        status: 404,
+        headers: { ...cors, "content-type": "application/json" },
+        body: JSON.stringify({ error: { code: 404, message: "models/gemini-flash-latest is not found", status: "NOT_FOUND" } }),
+      });
+    }
+    return route.fulfill({
+      status: 200,
+      headers: { ...cors, "content-type": "application/json" },
+      body: JSON.stringify({
+        candidates: [{ content: { role: "model", parts: [{ text: JSON.stringify({ language: "en", score: 90, tone_labels: [], tone_summary: "", issues: [] }) }] }, finishReason: "STOP" }],
+      }),
+    });
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: /^Check/ }).click();
+  await expect(page.locator(".ring-label")).toHaveText("90");
+  expect(used.some((u) => u.includes("gemini-3.5-flash:generateContent"))).toBe(true);
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("matra.settings.v1")!).googleModel);
+  expect(saved).toBe("gemini-3.5-flash");
 });

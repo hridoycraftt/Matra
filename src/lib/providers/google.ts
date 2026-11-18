@@ -3,7 +3,8 @@ import { MatraAIError, type Backend } from "./types";
 
 let cached: { key: string; client: GoogleGenAI } | null = null;
 function client(apiKey: string): GoogleGenAI {
-  if (cached?.key !== apiKey) cached = { key: apiKey, client: new GoogleGenAI({ apiKey }) };
+  // v1beta: the "-latest" aliases and newest models are served there, not on v1.
+  if (cached?.key !== apiKey) cached = { key: apiKey, client: new GoogleGenAI({ apiKey, apiVersion: "v1beta" }) };
   return cached.client;
 }
 
@@ -15,7 +16,7 @@ function friendly(err: unknown): MatraAIError {
     if (err.status === 401 || err.status === 403)
       return new MatraAIError("Your Google API key was not accepted. Check it in Settings.", "auth");
     if (err.status === 404)
-      return new MatraAIError("This Gemini model isn't available for your key. Pick another model in Settings.", "other");
+      return new MatraAIError("No Gemini model is available for this key. Check the key in Google AI Studio.", "other");
     if (err.status === 429)
       return new MatraAIError("Gemini's free-tier limit was reached. Wait a minute, or pick a Flash-Lite model in Settings.", "rate");
     return new MatraAIError(`AI service error (${err.status}). Try again.`, "other");
@@ -25,21 +26,68 @@ function friendly(err: unknown): MatraAIError {
   return new MatraAIError(err instanceof Error ? err.message : "Something went wrong.", "other");
 }
 
-export function googleBackend(apiKey: string, model: string): Backend {
+/** Models this key could not use, mapped to the model Matra switched to. */
+const replaced = new Map<string, string>();
+
+/** Pick the best text model this key can use: newest plain Flash, then any Flash, then anything. */
+export function pickBestModel(ids: string[]): string | null {
+  const version = (id: string) => parseFloat(id.match(/gemini-(\d+(?:\.\d+)?)/)?.[1] ?? "0");
+  const byNewest = (a: string, b: string) => version(b) - version(a);
+  const plainFlash = ids.filter((id) => /^gemini-[\d.]+-flash$/.test(id)).sort(byNewest);
+  const anyFlash = ids.filter((id) => id.includes("flash") && !/preview|exp|lite/.test(id)).sort(byNewest);
+  return plainFlash[0] ?? anyFlash[0] ?? ids.find((id) => id.includes("flash")) ?? ids[0] ?? null;
+}
+
+/** Remember the switch so Settings shows the model that actually works. */
+function persistModel(model: string) {
+  try {
+    const key = "matra.settings.v1";
+    const s = JSON.parse(localStorage.getItem(key) ?? "{}");
+    localStorage.setItem(key, JSON.stringify({ ...s, googleModel: model }));
+  } catch {
+    /* ignore */
+  }
+}
+
+function isModelMissing(err: unknown) {
+  return err instanceof ApiError && (err.status === 404 || (err.status === 400 && /model/i.test(err.message) && /not (found|supported)/i.test(err.message)));
+}
+
+export function googleBackend(apiKey: string, requested: string): Backend {
   const ai = client(apiKey);
+  let model = replaced.get(requested) ?? requested;
+
+  /** Run a request; if the model doesn't exist for this key, switch to one that does and retry once. */
+  async function withModel<T>(run: (m: string) => Promise<T>): Promise<T> {
+    try {
+      return await run(model);
+    } catch (err) {
+      if (!isModelMissing(err)) throw err;
+      const ids = (await listGoogleModels(apiKey).catch(() => [])).map((m) => m.id);
+      const pick = pickBestModel(ids.filter((id) => id !== model));
+      if (!pick) throw err;
+      replaced.set(requested, pick);
+      persistModel(pick);
+      model = pick;
+      return run(model);
+    }
+  }
+
   return {
     async json({ system, user, schema, signal }) {
       try {
-        const res = await ai.models.generateContent({
-          model,
-          contents: user,
-          config: {
-            systemInstruction: system,
-            responseMimeType: "application/json",
-            responseJsonSchema: schema,
-            abortSignal: signal,
-          },
-        });
+        const res = await withModel((m) =>
+          ai.models.generateContent({
+            model: m,
+            contents: user,
+            config: {
+              systemInstruction: system,
+              responseMimeType: "application/json",
+              responseJsonSchema: schema,
+              abortSignal: signal,
+            },
+          }),
+        );
         if (!res.text) throw new MatraAIError("The AI returned no result. Try again.", "other");
         return res.text;
       } catch (err) {
@@ -50,11 +98,13 @@ export function googleBackend(apiKey: string, model: string): Backend {
     async stream({ system, user, signal }, onText) {
       let soFar = "";
       try {
-        const stream = await ai.models.generateContentStream({
-          model,
-          contents: user,
-          config: { systemInstruction: system, abortSignal: signal },
-        });
+        const stream = await withModel((m) =>
+          ai.models.generateContentStream({
+            model: m,
+            contents: user,
+            config: { systemInstruction: system, abortSignal: signal },
+          }),
+        );
         for await (const chunk of stream) {
           if (chunk.text) {
             soFar += chunk.text;
