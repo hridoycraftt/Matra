@@ -110,6 +110,10 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
+          # The repository was renamed (matra -> Matra); name it exactly so release
+          # creation never goes through GitHub's rename redirect.
+          owner: hridoycraftt
+          repo: Matra
           tagName: v__VERSION__
           releaseName: "Matra v__VERSION__"
           releaseBody: ${{ steps.notes.outputs.body }}
@@ -188,6 +192,10 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
+          # The repository was renamed (matra -> Matra); name it exactly so release
+          # creation never goes through GitHub's rename redirect.
+          owner: hridoycraftt
+          repo: Matra
           tagName: v__VERSION__
           releaseName: "Matra v__VERSION__"
           releaseBody: ${{ steps.notes.outputs.body }}
@@ -197,3 +205,19 @@ jobs:
           includeUpdaterJson: true
           retryAttempts: 2
           args: --target universal-apple-darwin
+
+  # When GitHub had no free macOS machine for either job, start this workflow again
+  # after a short pause instead of waiting for the (often delayed) schedule. It stops
+  # by itself: once the release exists, the version job finds it and nothing runs.
+  retry:
+    needs: [version, release, release-fallback]
+    if: always() && needs.version.outputs.exists == 'false' && needs.release.result == 'cancelled' && needs.release-fallback.result == 'cancelled'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          sleep 300
+          gh workflow run release.yml --repo "$GITHUB_REPOSITORY" --ref main
